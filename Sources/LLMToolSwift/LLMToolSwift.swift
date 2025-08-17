@@ -14,3 +14,14 @@ public macro stringify<T>(_ value: T) -> (T, String) = #externalMacro(module: "L
 /// describing the annotated function for LLM tool schemas.
 @attached(peer, names: arbitrary)
 public macro LLMTool() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolMacro")
+
+/// Attached member macro placed on a type to aggregate all @LLMTool functions
+/// into a `llmTools` array and generate a `handleLLMCall(name:arguments:)` dispatcher.
+@attached(member, names: named(llmTools), named(dispatchTool(named:arguments:on:)))
+public macro LLMTools() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolsMacro")
+
+/// Attached member macro that scans all functions of the type and generates a
+/// repository of tools + an async dispatcher. It includes functions whose
+/// visibility is at least as visible as the type itself.
+@attached(member, names: named(llmTools), named(dispatchTool(named:arguments:on:)))
+public macro LLMToolRepository() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolRepositoryMacro")

@@ -6,11 +6,12 @@ Swift macros that generate OpenAI-style LLM tool schemas from documented Swift f
 - Swift: 6.2 (macOS 10.15+/iOS 13+)
 
 ## Features
-- `@LLMTool` attached peer macro generates `<funcName>LLMTool` with matching access level.
-- Parses DocC comments (`///`), using the first line as the tool description and `- Parameter` lines for parameter descriptions.
-- Maps Swift parameter types to JSON Schema types: `String → string`, `Int → integer`, `Double/Float → number`, `Bool → boolean`, with optional-handling (`T?` not required).
-- String-backed, `CaseIterable` enums produce an `enum` list for values (best-effort static extraction, with dynamic fallback via `EnumType.allCases.map(\.rawValue)`).
-- Clear diagnostics for unsupported parameter types.
+- `@LLMTool`: Generates `<funcName>LLMTool` with matching access level for per-function tool schemas.
+- `@LLMTools`: On a type, aggregates all `@LLMTool`-annotated functions into `static var llmTools` and generates `async throws func dispatchTool(named:arguments:)` to invoke by name.
+- `@LLMToolRepository`: On a type, aggregates all functions whose access is at least as visible as the type (no per-function annotations required) and generates `llmTools` + `dispatchTool(named:arguments:)`.
+- DocC parsing: Supports `///`, `//!`, and `/** ... */` (even when the block is placed between an attribute and the function) with `- Parameter` entries recognized.
+- Type mapping: `String → string`, `Int → integer`, `Double/Float → number`, `Bool → boolean`, optional handling (`T?` not required), and CaseIterable string-backed enums as `enum` values.
+- Diagnostics: Unsupported parameter types emit a compile-time error with guidance.
 
 ## Installation (Swift Package Manager)
 Add the package to your project using one of the methods below.
@@ -58,7 +59,7 @@ public struct WeatherService {
     }
 }
 
-// Access the generated tool schema
+// Access the generated tool schema (modern function shape)
 let toolJSON = WeatherService.getCurrentWeatherLLMTool.jsonString
 print(toolJSON)
 ```
@@ -66,7 +67,43 @@ print(toolJSON)
 Example output (minified):
 
 ```json
-{"type":"function","function":{"name":"getCurrentWeather","description":"Provides the current weather for a specified location.","parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g., \"San Francisco, CA\"."},"unit":{"type":"string","description":"The temperature unit to use, either \"celsius\" or \"fahrenheit\".","enum":["celsius","fahrenheit"]}},"required":["location","unit"]}}}
+{"name":"get_current_weather","description":"Provides the current weather for a specified location.","strict":true,"parameters":{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g., \"San Francisco, CA\"."},"unit":{"type":"string","description":"The temperature unit to use, either \"celsius\" or \"fahrenheit\".","enum":["celsius","fahrenheit"]}},"required":["location","unit"],"additionalProperties":false}}
+```
+### Aggregate tools + dispatcher
+Use `@LLMTools` if you annotate individual functions with `@LLMTool` and want an aggregate plus a dispatcher:
+
+```swift
+@LLMTools
+struct Calculator {
+    /// Adds two integers
+    /// - Parameter a: First value
+    /// - Parameter b: Second value
+    @LLMTool
+    func add(a: Int, b: Int) -> Int { a + b }
+}
+
+// List all tools
+print(Calculator.llmTools.map { $0.function.name }) // ["add"]
+
+// Dispatch by name
+let calc = Calculator()
+let result = try await calc.dispatchTool(named: "add", arguments: ["a": 2, "b": 3]) as? Int
+```
+
+Use `@LLMToolRepository` when you prefer to generate tools and a dispatcher for all eligible functions automatically (no per-function annotations required):
+
+```swift
+@LLMToolRepository
+struct WeatherRepo {
+    /** Summary
+     - Parameter city: City name
+     */
+    func current(city: String) -> String { "Sunny in \(city)" }
+}
+
+print(WeatherRepo.llmTools.count) // 1
+let repo = WeatherRepo()
+let s = try await repo.dispatchTool(named: "current", arguments: ["city": "Lisbon"]) as? String
 ```
 
 ## Supported Types
@@ -80,9 +117,9 @@ Example output (minified):
 Unsupported parameter types emit a compile-time diagnostic.
 
 ## Tips
-- Description is taken from the first line of the function’s DocC comments; parameter descriptions from `- Parameter` lines.
-- The generated property name is the function name plus `LLMTool` (e.g., `getCurrentWeatherLLMTool`).
-- The property’s access level matches the function’s access level.
+- Doc comments: The first non-empty line becomes the tool description; `- Parameter` lines populate parameter docs.
+- Property name: Per-function tool property is `funcName + LLMTool` (e.g., `getCurrentWeatherLLMTool`).
+- Access: Generated properties/methods match type visibility; `@LLMToolRepository` includes only functions whose access is at least as visible as the type.
 
 ## Sample Client
 This package includes a tiny executable target demonstrating usage:
