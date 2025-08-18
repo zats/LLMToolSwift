@@ -4,6 +4,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 import LLMToolSwift
+import LLMToolOpenAI
 
 
 
@@ -238,5 +239,47 @@ final class LLMToolSwiftTests: XCTestCase {
         XCTAssertEqual(r1, "Hi, Ana")
         let r2 = try await demo.dispatchLLMTool(named: "add", arguments: ["a": 2, "b": 3]) as? Int
         XCTAssertEqual(r2, 5)
+    }
+
+    func testOpenAITool_StrictTrue_Encoding() throws {
+        // Build a tool with one required and one optional param
+        let params = LLMTool.Parameters(
+            properties: [
+                "name": .init(type: "string", description: "", enum: nil),
+                "title": .init(type: "string", description: "", enum: nil)
+            ],
+            required: ["name"]
+        )
+        let tool = LLMTool(function: .init(name: "greet", description: "", parameters: params))
+
+        let oaiTool = tool.openAITool(strict: true)
+        let data = try JSONEncoder().encode(oaiTool)
+        let json = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertTrue(json.contains("\"strict\":true"))
+        // In strict mode, required should contain all properties
+        XCTAssertTrue(json.contains("\"required\":[\"name\",\"title\"]"))
+        // Optional field should admit null via union type
+        XCTAssertTrue(json.contains("\"type\":[\"string\",\"null\"]"))
+    }
+
+    func testOpenAITool_StrictFalse_Encoding() throws {
+        // Build a tool with one required and one optional param
+        let params = LLMTool.Parameters(
+            properties: [
+                "name": .init(type: "string", description: "", enum: nil),
+                "title": .init(type: "string", description: "", enum: nil)
+            ],
+            required: ["name"]
+        )
+        let tool = LLMTool(function: .init(name: "greet", description: "", parameters: params))
+
+        let oaiTool = tool.openAITool(strict: false)
+        let data = try JSONEncoder().encode(oaiTool)
+        let json = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertTrue(json.contains("\"strict\":false"))
+        // In non-strict mode, required should contain only the actually required keys
+        XCTAssertTrue(json.contains("\"required\":[\"name\"]"))
+        // Optional field should NOT admit null via union type
+        XCTAssertFalse(json.contains("\"type\":[\"string\",\"null\"]"))
     }
 }

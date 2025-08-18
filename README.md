@@ -54,6 +54,7 @@ final class MyViewModel {
             input: .textInput(query),
             model: .gpt5,
             toolChoice: .ToolChoiceOptions(.auto),
+            // Defaults to strict mode; pass strict: false to relax
             tools: MyFunctionRegistry.llmTools.map { $0.openAITool }
         )
     }
@@ -88,6 +89,17 @@ Swift macros that generate OpenAI-style LLM tool schemas from documented Swift f
 - DocC parsing: Supports `///`, `//!`, and `/** ... */` (even when the block is placed between an attribute and the function) with `- Parameter` entries recognized.
 - Type mapping: `String → string`, `Int → integer`, `Double/Float → number`, `Bool → boolean`, optional handling (`T?` not required), and CaseIterable string-backed enums as `enum` values.
 - Diagnostics: Unsupported parameter types emit a compile-time error with guidance.
+
+### OpenAI integration and strict mode
+- `import LLMToolOpenAI` to convert `LLMTool` to OpenAI `Tool` types.
+- `tool.openAITool(strict: Bool = true)`: Build a single OpenAI tool.
+  - When `strict` is true (default):
+    - Optional parameters are encoded as a union with `null` (e.g., `"type":["string","null"]`).
+    - The `required` array lists all properties (OpenAI strict-mode behavior).
+  - When `strict` is false:
+    - Optional parameters are not unioned with `null`.
+    - The `required` array contains only actually required properties.
+- For arrays: `MyFunctionRegistry.llmTools.openAITools(strict: ...)`.
 
 ## Installation (Swift Package Manager)
 Add the package to your project using one of the methods below.

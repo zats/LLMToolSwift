@@ -52,6 +52,7 @@ let package = Package(
             dependencies: [
                 "LLMToolSwiftMacros",
                 "LLMToolSwift",
+                "LLMToolOpenAI",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
