@@ -31,13 +31,28 @@ public struct LLMTool: Encodable, Equatable {
         }
     }
 
+    public enum PropertyType: String, Encodable, Equatable {
+        case string
+        case integer
+        case number
+        case boolean
+    }
+
     public struct Property: Encodable, Equatable {
-        public let type: String
+        public let type: PropertyType
         public let description: String
         public let `enum`: [String]?
 
-        public init(type: String, description: String, enum values: [String]? = nil) {
+        // Preferred initializer using strong-typed PropertyType
+        public init(type: PropertyType, description: String, enum values: [String]? = nil) {
             self.type = type
+            self.description = description
+            self.enum = values
+        }
+
+        // Backwards-compatible initializer used by existing macro generation
+        public init(type: String, description: String, enum values: [String]? = nil) {
+            self.type = PropertyType(rawValue: type) ?? .string
             self.description = description
             self.enum = values
         }
@@ -61,7 +76,7 @@ public struct LLMTool: Encodable, Equatable {
         }
 
         let out = Out(
-            name: LLMTool.snakeCase(function.name),
+            name: function.name,
             description: function.description,
             strict: true,
             parameters: .init(
@@ -81,19 +96,5 @@ public struct LLMTool: Encodable, Equatable {
             return "{}"
         }
         return json
-    }
-
-    private static func snakeCase(_ s: String) -> String {
-        guard !s.isEmpty else { return s }
-        var result = ""
-        for (i, ch) in s.enumerated() {
-            if ch.isUppercase {
-                if i != 0 { result.append("_") }
-                result.append(ch.lowercased())
-            } else {
-                result.append(ch)
-            }
-        }
-        return result
     }
 }

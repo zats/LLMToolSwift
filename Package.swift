@@ -13,13 +13,14 @@ let package = Package(
             name: "LLMToolSwift",
             targets: ["LLMToolSwift"]
         ),
-        .executable(
-            name: "LLMToolSwiftClient",
-            targets: ["LLMToolSwiftClient"]
+        .library(
+            name: "LLMToolOpenAI",
+            targets: ["LLMToolOpenAI"]
         ),
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "602.0.0-latest"),
+        .package(url: "https://github.com/MacPaw/OpenAI", branch: "main"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -36,8 +37,14 @@ let package = Package(
         // Library that exposes a macro as part of its API, which is used in client programs.
         .target(name: "LLMToolSwift", dependencies: ["LLMToolSwiftMacros"]),
 
-        // A client of the library, which is able to use the macro in its own code.
-        .executableTarget(name: "LLMToolSwiftClient", dependencies: ["LLMToolSwift"]),
+        // Optional integration target for the OpenAI client types.
+        .target(
+            name: "LLMToolOpenAI",
+            dependencies: [
+                "LLMToolSwift",
+                .product(name: "OpenAI", package: "OpenAI")
+            ]
+        ),
 
         // A test target used to develop the macro implementation.
         .testTarget(

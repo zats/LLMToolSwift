@@ -145,10 +145,10 @@ final class LLMToolSwiftTests: XCTestCase {
         // Validate at runtime using file-scope Demo
         XCTAssertEqual(Demo.llmTools.count, 2)
         let d = Demo()
-        let res = try await d.dispatchTool(named: "hi", arguments: ["name": "Zed"]) as? String
+        let res = try await d.dispatchLLMTool(named: "hi", arguments: ["name": "Zed"]) as? String
         XCTAssertEqual(res, "Hi, Zed")
-        do { _ = try await d.dispatchTool(named: "hi", arguments: [:]); XCTFail("expected error") } catch {}
-        do { _ = try await d.dispatchTool(named: "unknown", arguments: [:]); XCTFail("expected error") } catch {}
+        do { _ = try await d.dispatchLLMTool(named: "hi", arguments: [:]); XCTFail("expected error") } catch {}
+        do { _ = try await d.dispatchLLMTool(named: "unknown", arguments: [:]); XCTFail("expected error") } catch {}
     }
 
     func testLLMToolMacro_DocBlockParsing() throws {
@@ -234,9 +234,9 @@ final class LLMToolSwiftTests: XCTestCase {
         // Repo should include only functions whose access >= type access (internal)
         XCTAssertEqual(RepoDemo.llmTools.count, 2)
         let demo = RepoDemo()
-        let r1 = try await demo.dispatchTool(named: "hello", arguments: ["name": "Ana"]) as? String
+        let r1 = try await demo.dispatchLLMTool(named: "hello", arguments: ["name": "Ana"]) as? String
         XCTAssertEqual(r1, "Hi, Ana")
-        let r2 = try await demo.dispatchTool(named: "add", arguments: ["a": 2, "b": 3]) as? Int
+        let r2 = try await demo.dispatchLLMTool(named: "add", arguments: ["a": 2, "b": 3]) as? Int
         XCTAssertEqual(r2, 5)
     }
 }

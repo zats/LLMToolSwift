@@ -491,7 +491,7 @@ public struct LLMToolsMacro: MemberMacro {
         }
         let casesJoined = switchCases.joined(separator: "\n\n            ")
         let dispatcherDecl: DeclSyntax = """
-        \(raw: emitAccess) func dispatchTool(named name: String, arguments: [String: Any]) async throws -> Any? {
+        \(raw: emitAccess) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
             switch name {
             \(raw: casesJoined)
             default:
@@ -662,7 +662,7 @@ public struct LLMToolsMacro: MemberMacro {
         }
         let casesJoined = switchCases.joined(separator: "\n\n            ")
         let dispatcherDecl: DeclSyntax = """
-        \(raw: emitAccess) func dispatchTool(named name: String, arguments: [String: Any]) async throws -> Any? {
+        \(raw: emitAccess) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
             switch name {
             \(raw: casesJoined)
             default:
@@ -812,7 +812,7 @@ public struct LLMToolRepositoryMacro: MemberMacro {
         let casesJoined = switchCases.joined(separator: "\n\n            ")
         let emitAccess2 = self.effectiveAccess(typeAccess)
         let dispatcherDecl: DeclSyntax = """
-        \(raw: emitAccess2) func dispatchTool(named name: String, arguments: [String: Any]) async throws -> Any? {
+        \(raw: emitAccess2) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any {
             switch name {
             \(raw: casesJoined)
             default:
