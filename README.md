@@ -141,6 +141,3 @@ Unsupported parameter types emit a compile-time diagnostic.
   swift test --build-path "$BUILD_DIR"
   ```
 - Open `Package.swift` in Xcode to explore the library, macro implementation, and tests.
-
-## Roadmap
-See `SPEC.md` for the full design and the project TODOs. Contributions, feedback, and ideas are welcome!
