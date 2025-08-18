@@ -462,16 +462,7 @@ public struct LLMToolsMacro: MemberMacro {
         let typeAccess = self.accessModifier(from: mods)
         let emitAccess = self.effectiveAccess(typeAccess)
         // Determine concrete receiver type for dispatcher parameter
-        let receiverType: String
-        if let s = decl.as(StructDeclSyntax.self) {
-            receiverType = s.name.text
-        } else if let c = decl.as(ClassDeclSyntax.self) {
-            receiverType = c.name.text
-        } else if let e = decl.as(ExtensionDeclSyntax.self) {
-            receiverType = e.extendedType.trimmedDescription
-        } else {
-            receiverType = "Self"
-        }
+        // Instance dispatcher; receiver is self
 
         // Collect functions annotated with @LLMTool
         var toolFuncs: [FunctionDeclSyntax] = []
@@ -495,12 +486,12 @@ public struct LLMToolsMacro: MemberMacro {
         // Dispatcher
         var switchCases: [String] = []
         for f in toolFuncs {
-            let call = try self.buildDispatchCase(for: f, receiverBase: "instance")
+            let call = try self.buildDispatchCase(for: f, receiverBase: "self")
             switchCases.append(call)
         }
         let casesJoined = switchCases.joined(separator: "\n\n            ")
         let dispatcherDecl: DeclSyntax = """
-        \(raw: emitAccess) static func dispatchTool(named name: String, arguments: [String: Any], on instance: \(raw: receiverType)) async throws -> Any? {
+        \(raw: emitAccess) func dispatchTool(named name: String, arguments: [String: Any]) async throws -> Any? {
             switch name {
             \(raw: casesJoined)
             default:
@@ -666,12 +657,12 @@ public struct LLMToolsMacro: MemberMacro {
 
         var switchCases: [String] = []
         for f in toolFuncs {
-            let call = try self.buildDispatchCase(for: f, receiverBase: "instance")
+            let call = try self.buildDispatchCase(for: f, receiverBase: "self")
             switchCases.append(call)
         }
         let casesJoined = switchCases.joined(separator: "\n\n            ")
         let dispatcherDecl: DeclSyntax = """
-        \(raw: emitAccess) static func dispatchTool(named name: String, arguments: [String: Any], on instance: \(raw: receiverType)) async throws -> Any? {
+        \(raw: emitAccess) func dispatchTool(named name: String, arguments: [String: Any]) async throws -> Any? {
             switch name {
             \(raw: casesJoined)
             default:
@@ -713,17 +704,7 @@ public struct LLMToolRepositoryMacro: MemberMacro {
         let typeAccess = self.accessModifier(from: mods)
         let typeRank = accessRank(typeAccess)
 
-        // Determine receiver type for dispatcher
-        let receiverType: String
-        if let s = decl.as(StructDeclSyntax.self) {
-            receiverType = s.name.text
-        } else if let c = decl.as(ClassDeclSyntax.self) {
-            receiverType = c.name.text
-        } else if let e = decl.as(ExtensionDeclSyntax.self) {
-            receiverType = e.extendedType.trimmedDescription
-        } else {
-            receiverType = "Self"
-        }
+        // Instance dispatcher uses `self`; no receiver type variable needed.
 
         // Collect eligible functions by access
         var funcs: [FunctionDeclSyntax] = []
@@ -825,12 +806,13 @@ public struct LLMToolRepositoryMacro: MemberMacro {
         // Dispatcher same as LLMToolsMacro
         var switchCases: [String] = []
         for f in funcs {
-            let call = try self.buildDispatchCase(for: f, receiverBase: "instance")
+            let call = try self.buildDispatchCase(for: f, receiverBase: "self")
             switchCases.append(call)
         }
         let casesJoined = switchCases.joined(separator: "\n\n            ")
+        let emitAccess2 = self.effectiveAccess(typeAccess)
         let dispatcherDecl: DeclSyntax = """
-        \(raw: typeAccess) static func dispatchTool(named name: String, arguments: [String: Any], on instance: \(raw: receiverType)) async throws -> Any? {
+        \(raw: emitAccess2) func dispatchTool(named name: String, arguments: [String: Any]) async throws -> Any? {
             switch name {
             \(raw: casesJoined)
             default:

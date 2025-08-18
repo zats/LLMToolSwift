@@ -1,5 +1,51 @@
 # LLMToolSwift
 
+Swift macros that generate OpenAI-style LLM tool schemas from documented Swift functions and an optional dispatcher to invoke them by name.
+
+## Simple Usage
+
+```swift
+import LLMToolSwift
+
+// 1) Define your tool host type and annotate functions
+@LLMTools
+struct WeatherService {
+    /// Fetch weather information for a specified location.
+    /// - Parameter location: City and state, e.g., "San Francisco, CA".
+    @LLMTool
+    func getWeather(location: String) -> String {
+        "It’s sunny in \(location)."
+    }
+
+    /// Convert Celsius to Fahrenheit.
+    /// - Parameter value: Temperature in Celsius.
+    @LLMTool
+    func toFahrenheit(value: Double) -> Double {
+        value * 9.0/5.0 + 32.0
+    }
+}
+
+// 2) Build tools payload for OpenAI
+// Each LLMTool.jsonString is the modern function schema (name, description, strict, parameters).
+let functionObjects: [[String: Any]] = WeatherService.llmTools.compactMap { tool in
+    guard let data = tool.jsonString.data(using: .utf8),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+    return obj
+}
+let toolsPayload: [[String: Any]] = functionObjects.map { ["type": "function", "function": $0] }
+// Pass `toolsPayload` to OpenAI along with your messages.
+
+// 3) Dispatch tool calls returned by OpenAI
+let host = WeatherService()
+// Suppose the model asked to call: getWeather with {"location":"Paris"}
+let name = "getWeather"
+let args: [String: Any] = ["location": "Paris"]
+let value = try await host.dispatchTool(named: name, arguments: args)
+// `value` is Any? (String for getWeather, Double for toFahrenheit, or nil for Void)
+```
+
+—
+
 Swift macros that generate OpenAI-style LLM tool schemas from documented Swift functions. Annotate a function with `@LLMTool` and a static `<funcName>LLMTool` property is generated that describes the function and its parameters. Use `jsonString` to get a minified JSON schema you can pass to LLMs.
 
 - URL: https://github.com/zats/LLMToolSwift

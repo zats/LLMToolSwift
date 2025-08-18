@@ -17,11 +17,11 @@ public macro LLMTool() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLM
 
 /// Attached member macro placed on a type to aggregate all @LLMTool functions
 /// into a `llmTools` array and generate a `handleLLMCall(name:arguments:)` dispatcher.
-@attached(member, names: named(llmTools), named(dispatchTool(named:arguments:on:)))
+@attached(member, names: named(llmTools), named(dispatchTool(named:arguments:)))
 public macro LLMTools() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolsMacro")
 
 /// Attached member macro that scans all functions of the type and generates a
 /// repository of tools + an async dispatcher. It includes functions whose
 /// visibility is at least as visible as the type itself.
-@attached(member, names: named(llmTools), named(dispatchTool(named:arguments:on:)))
+@attached(member, names: named(llmTools), named(dispatchTool(named:arguments:)))
 public macro LLMToolRepository() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolRepositoryMacro")
