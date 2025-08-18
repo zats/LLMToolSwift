@@ -84,7 +84,6 @@ Swift macros that generate OpenAI-style LLM tool schemas from documented Swift f
 
 ## Features
 - `@LLMTool`: Generates `<funcName>LLMTool` with matching access level for per-function tool schemas.
-- `@LLMTools`: On a type, aggregates all `@LLMTool`-annotated functions into `static var llmTools` and generates `async throws func dispatchLLMTool(named:arguments:)` to invoke by name.
 - `@LLMToolRepository`: On a type, aggregates all functions whose access is at least as visible as the type (no per-function annotations required) and generates `llmTools` + `dispatchLLMTool(named:arguments:)`.
 - DocC parsing: Supports `///`, `//!`, and `/** ... */` (even when the block is placed between an attribute and the function) with `- Parameter` entries recognized.
 - Type mapping: `String → string`, `Int → integer`, `Double/Float → number`, `Bool → boolean`, optional handling (`T?` not required), and CaseIterable string-backed enums as `enum` values.
