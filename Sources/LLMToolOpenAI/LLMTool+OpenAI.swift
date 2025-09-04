@@ -78,6 +78,21 @@ public extension LLMTool {
 }
 
 public extension Array where Element == LLMTool {
-    var openAITools: [Tool] { map { $0.openAITool(strict: true) } }
-    func openAITools(strict: Bool = true) -> [Tool] { map { $0.openAITool(strict: strict) } }
+    var openAITools: [Tool] {
+        map { $0.openAITool(strict: true) }
+    }
+    
+    func openAITools(strict: Bool = true) -> [Tool] {
+        map { $0.openAITool(strict: strict) }
+    }
+}
+
+public extension Components.Schemas.FunctionToolCall {
+    var argumentsDictioanry: [String: Any] {
+        guard let data = arguments.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data, options: []),
+              let dict = json as? [String: Any]
+        else { return [:] }
+        return dict
+    }
 }
