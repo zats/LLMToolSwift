@@ -88,7 +88,7 @@ public extension Array where Element == LLMTool {
 }
 
 public extension Components.Schemas.FunctionToolCall {
-    var argumentsDictioanry: [String: Any] {
+    var argumentsDictionary: [String: Any] {
         guard let data = arguments.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data, options: []),
               let dict = json as? [String: Any]
