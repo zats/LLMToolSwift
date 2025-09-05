@@ -160,8 +160,8 @@ final class LLMToolSwiftTests: XCTestCase {
 
     func testLLMTools_RuntimeDispatcher() async throws {
         // Validate at runtime using file-scope Demo
-        XCTAssertEqual(Demo.llmTools.count, 2)
         let d = Demo()
+        XCTAssertEqual(d.llmTools.count, 2)
         let res = try await d.dispatchLLMTool(named: "hi", arguments: ["name": "Zed"]) as? String
         XCTAssertEqual(res, "Hi, Zed")
         do { _ = try await d.dispatchLLMTool(named: "hi", arguments: [:]); XCTFail("expected error") } catch {}
@@ -254,6 +254,52 @@ final class LLMToolSwiftTests: XCTestCase {
             XCTFail("expected missingArgument error for NSNull on required param")
         } catch LLMToolCallError.missingArgument(let name) {
             XCTAssertEqual(name, "a")
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
+    func testLLMTools_Filtering_Runtime() async throws {
+        @LLMTools
+        struct FilterDemo {
+            @LLMTool
+            /// Hello
+            /// - Parameter name: Name
+            func hello(name: String) -> String { "Hi, \(name)" }
+            @LLMTool
+            /// Add
+            /// - Parameter a: a
+            /// - Parameter b: b
+            func add(a: Int, b: Int) -> Int { a + b }
+            @LLMTool
+            /// Multiply
+            /// - Parameter a: a
+            /// - Parameter b: b
+            func mul(a: Int, b: Int) -> Int { a * b }
+        }
+
+        // Full repo has all three
+        XCTAssertEqual(FilterDemo().llmTools.map { $0.function.name }, ["hello", "add", "mul"])
+
+        let base = FilterDemo()
+        let mask: FilterDemo.LLMToolFilterSet = [.hello, .add]
+        let subset = base.filter(mask)
+
+        // Subset lists only selected tools
+        XCTAssertEqual(subset.llmTools.map { $0.function.name }, ["hello", "add"])
+
+        // Allowed tools dispatch
+        let r1 = try await subset.dispatchLLMTool(named: "hello", arguments: ["name": "Sam"]) as? String
+        XCTAssertEqual(r1, "Hi, Sam")
+        let r2 = try await subset.dispatchLLMTool(named: "add", arguments: ["a": 2, "b": 3]) as? Int
+        XCTAssertEqual(r2, 5)
+
+        // Disallowed tool throws same not-found error
+        do {
+            _ = try await subset.dispatchLLMTool(named: "mul", arguments: ["a": 2, "b": 3])
+            XCTFail("expected functionNotFound for filtered-out tool")
+        } catch LLMToolCallError.functionNotFound(let name) {
+            XCTAssertEqual(name, "mul")
         } catch {
             XCTFail("unexpected error: \(error)")
         }

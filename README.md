@@ -55,7 +55,7 @@ final class MyViewModel {
             model: .gpt5,
             toolChoice: .ToolChoiceOptions(.auto),
             // Defaults to strict mode; pass strict: false to relax
-            tools: MyFunctionRegistry.llmTools.map { $0.openAITool }
+            tools: MyFunctionRegistry().llmTools.map { $0.openAITool }
         )
     }
     

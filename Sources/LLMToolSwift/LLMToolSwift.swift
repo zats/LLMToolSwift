@@ -18,5 +18,11 @@ public macro LLMTool() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLM
 /// Attached member macro placed on a type to aggregate all @LLMTool functions
 /// into a `llmTools` array and generate a `handleLLMCall(name:arguments:)` dispatcher.
 /// The annotated type also conforms to `LLMToolsRepository`.
-@attached(member, names: named(llmTools), named(dispatchLLMTool(named:arguments:)), conformances: LLMToolsRepository)
+@attached(member,
+          names: named(llmTools),
+                 named(dispatchLLMTool(named:arguments:)),
+                 named(LLMToolFilterSet),
+                 named(_FilteredRepository),
+                 named(filter(_:)),
+          conformances: LLMToolsRepository)
 public macro LLMTools() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolsMacro")
