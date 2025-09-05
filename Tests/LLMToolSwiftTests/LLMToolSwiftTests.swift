@@ -78,7 +78,6 @@ let testMacros: [String: Macro.Type] = [
     "stringify": StringifyMacro.self,
     "LLMTool": LLMToolMacro.self,
     "LLMTools": LLMToolsMacro.self,
-    "LLMToolRepository": LLMToolRepositoryMacro.self,
 ]
 #endif
 
@@ -237,26 +236,7 @@ final class LLMToolSwiftTests: XCTestCase {
         XCTAssertTrue(toolJSON.contains("\"name\":\"f\""))
     }
 
-    func testLLMToolRepository_Runtime() async throws {
-        @LLMToolRepository
-        struct RepoDemo {
-            /// Hello
-            /// - Parameter name: Name
-            func hello(name: String) -> String { "Hi, \(name)" }
-            /// Add
-            /// - Parameter a: a
-            /// - Parameter b: b
-            func add(a: Int, b: Int) -> Int { a + b }
-            private func hidden() {}
-        }
-        // Repo should include only functions whose access >= type access (internal)
-        XCTAssertEqual(RepoDemo.llmTools.count, 2)
-        let demo = RepoDemo()
-        let r1 = try await demo.dispatchLLMTool(named: "hello", arguments: ["name": "Ana"]) as? String
-        XCTAssertEqual(r1, "Hi, Ana")
-        let r2 = try await demo.dispatchLLMTool(named: "add", arguments: ["a": 2, "b": 3]) as? Int
-        XCTAssertEqual(r2, 5)
-    }
+    
 
     func testNSNullTreatedAsNilAndErrorForRequired() async throws {
         let d = NullDemo()

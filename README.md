@@ -7,7 +7,7 @@ Swift macros that generate OpenAI-style LLM tool schemas from documented Swift f
 ```swift
 import LLMToolSwift
 
-@LLMToolRepository
+@LLMTools
 final class MyFunctionRegistry {
     /**
      Fetches weather information for a specified location using an LLM tool.
@@ -85,7 +85,7 @@ Swift macros that generate OpenAI-style LLM tool schemas from documented Swift f
 
 ## Features
 - `@LLMTool`: Generates `<funcName>LLMTool` with matching access level for per-function tool schemas.
-- `@LLMToolRepository`: On a type, aggregates all functions whose access is at least as visible as the type (no per-function annotations required) and generates `llmTools` + `dispatchLLMTool(named:arguments:)`.
+- `@LLMTools`: Apply to a type to aggregate all functions annotated with `@LLMTool` into a static `llmTools` array and synthesize an instance method `dispatchLLMTool(named:arguments:)` that calls the matching function with validated, converted arguments.
 - DocC parsing: Supports `///`, `//!`, and `/** ... */` (even when the block is placed between an attribute and the function) with `- Parameter` entries recognized.
 - Type mapping: `String → string`, `Int → integer`, `Double/Float → number`, `Bool → boolean`, optional handling (`T?` not required), and CaseIterable string-backed enums as `enum` values.
 - Diagnostics: Unsupported parameter types emit a compile-time error with guidance.
@@ -141,7 +141,7 @@ Unsupported parameter types emit a compile-time diagnostic.
 ## Tips
 - Doc comments: The first non-empty line becomes the tool description; `- Parameter` lines populate parameter docs.
 - Property name: Per-function tool property is `funcName + LLMTool` (e.g., `getCurrentWeatherLLMTool`).
-- Access: Generated properties/methods match type visibility; `@LLMToolRepository` includes only functions whose access is at least as visible as the type.
+- Access: Generated properties/methods match type visibility.
 
 
 ## Development
