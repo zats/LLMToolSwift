@@ -35,7 +35,14 @@ let package = Package(
         ),
 
         // Library that exposes a macro as part of its API, which is used in client programs.
-        .target(name: "LLMToolSwift", dependencies: ["LLMToolSwiftMacros"]),
+        .target(
+            name: "LLMToolSwift",
+            dependencies: ["LLMToolSwiftMacros"],
+            swiftSettings: [
+                // Enable library evolution so downstream SDKs built "for distribution" are compatible
+                .unsafeFlags(["-enable-library-evolution"])
+            ]
+        ),
 
         // Optional integration target for the OpenAI client types.
         .target(
