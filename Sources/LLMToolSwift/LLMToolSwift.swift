@@ -25,4 +25,5 @@ public macro LLMTool() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLM
                  named(_FilteredRepository),
                  named(filter(_:)),
           conformances: LLMToolsRepository)
+@attached(extension, conformances: LLMToolsRepository)
 public macro LLMTools() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolsMacro")

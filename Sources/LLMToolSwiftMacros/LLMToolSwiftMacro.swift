@@ -439,7 +439,7 @@ public struct LLMToolMacro: PeerMacro {
 
 // MARK: - Type-level aggregator macro
 
-public struct LLMToolsMacro: MemberMacro {
+public struct LLMToolsMacro: MemberMacro, ExtensionMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf decl: some DeclSyntaxProtocol,
@@ -782,6 +782,41 @@ public struct LLMToolsMacro: MemberMacro {
         return [toolsDecl, dispatcherDecl, filterSetDecl, filteredDecl, filterFactoryDecl]
     }
 
+}
+
+// MARK: - Peer expansion to add conformance via extension
+
+extension LLMToolsMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo protocols: [TypeSyntax],
+        in context: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {
+        // Synthesize the conformance when the type actually exposes tools.
+
+        // Ensure there is at least one @LLMTool function
+        let members: MemberBlockSyntax?
+        if let s = declaration.as(StructDeclSyntax.self) { members = s.memberBlock }
+        else if let c = declaration.as(ClassDeclSyntax.self) { members = c.memberBlock }
+        else if let e = declaration.as(ExtensionDeclSyntax.self) { members = e.memberBlock }
+        else { members = nil }
+        guard let members else { return [] }
+        var hasAnyTool = false
+        for m in members.members {
+            if let f = m.decl.as(FunctionDeclSyntax.self), self.hasLLMToolAttribute(f) { hasAnyTool = true; break }
+        }
+        guard hasAnyTool else { return [] }
+
+        // Only add conformance if requested by the declaration site
+        // (matches the macro declaration's `conformances:` list)
+        guard !protocols.isEmpty else { return [] }
+
+        let extDecl: DeclSyntax = "extension \(type.trimmed): LLMToolsRepository {}"
+        guard let extensionDecl = extDecl.as(ExtensionDeclSyntax.self) else { return [] }
+        return [extensionDecl]
+    }
 }
 
 // MARK: - Repository macro (collect all eligible functions)

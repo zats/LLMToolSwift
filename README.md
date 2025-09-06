@@ -85,7 +85,7 @@ Swift macros that generate OpenAI-style LLM tool schemas from documented Swift f
 
 ## Features
 - `@LLMTool`: Generates `<funcName>LLMTool` with matching access level for per-function tool schemas.
-- `@LLMTools`: Apply to a type to aggregate all functions annotated with `@LLMTool` into a static `llmTools` array and synthesize an instance method `dispatchLLMTool(named:arguments:)` that calls the matching function with validated, converted arguments.
+- `@LLMTools`: Apply to a type to aggregate all functions annotated with `@LLMTool` into a static `llmTools` array and synthesize an instance method `dispatchLLMTool(named:arguments:)` that calls the matching function with validated, converted arguments. The annotated type automatically conforms to `LLMToolsRepository` (when used at file scope).
 - DocC parsing: Supports `///`, `//!`, and `/** ... */` (even when the block is placed between an attribute and the function) with `- Parameter` entries recognized.
 - Type mapping: `String → string`, `Int → integer`, `Double/Float → number`, `Bool → boolean`, optional handling (`T?` not required), and CaseIterable string-backed enums as `enum` values.
 - Diagnostics: Unsupported parameter types emit a compile-time error with guidance.
@@ -142,6 +142,7 @@ Unsupported parameter types emit a compile-time diagnostic.
 - Doc comments: The first non-empty line becomes the tool description; `- Parameter` lines populate parameter docs.
 - Property name: Per-function tool property is `funcName + LLMTool` (e.g., `getCurrentWeatherLLMTool`).
 - Access: Generated properties/methods match type visibility.
+- Scope tip: Apply `@LLMTools` at file scope to also get automatic `LLMToolsRepository` conformance. Attaching `@LLMTools` to local types (inside functions) is not supported.
 
 
 ## Development

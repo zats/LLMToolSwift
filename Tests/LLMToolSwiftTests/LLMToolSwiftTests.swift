@@ -70,6 +70,25 @@ struct NullDemo {
     func requiredParam(a: String) -> String { a }
 }
 
+// File-scope demo for filtering repository behavior
+@LLMTools
+struct FilterDemo {
+    @LLMTool
+    /// Hello
+    /// - Parameter name: Name
+    func hello(name: String) -> String { "Hi, \(name)" }
+    @LLMTool
+    /// Add
+    /// - Parameter a: a
+    /// - Parameter b: b
+    func add(a: Int, b: Int) -> Int { a + b }
+    @LLMTool
+    /// Multiply
+    /// - Parameter a: a
+    /// - Parameter b: b
+    func mul(a: Int, b: Int) -> Int { a * b }
+}
+
 // Macro implementations build for the host, so the corresponding module is not available when cross-compiling. Cross-compiled tests may still make use of the macro itself in end-to-end tests.
 #if canImport(LLMToolSwiftMacros)
 import LLMToolSwiftMacros
@@ -260,23 +279,8 @@ final class LLMToolSwiftTests: XCTestCase {
     }
 
     func testLLMTools_Filtering_Runtime() async throws {
-        @LLMTools
-        struct FilterDemo {
-            @LLMTool
-            /// Hello
-            /// - Parameter name: Name
-            func hello(name: String) -> String { "Hi, \(name)" }
-            @LLMTool
-            /// Add
-            /// - Parameter a: a
-            /// - Parameter b: b
-            func add(a: Int, b: Int) -> Int { a + b }
-            @LLMTool
-            /// Multiply
-            /// - Parameter a: a
-            /// - Parameter b: b
-            func mul(a: Int, b: Int) -> Int { a * b }
-        }
+        // File-scope annotated types conform to LLMToolsRepository
+        let _: any LLMToolsRepository = Demo()
 
         // Full repo has all three
         XCTAssertEqual(FilterDemo().llmTools.map { $0.function.name }, ["hello", "add", "mul"])
