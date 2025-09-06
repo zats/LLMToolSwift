@@ -280,7 +280,7 @@ final class LLMToolSwiftTests: XCTestCase {
 
     func testLLMTools_Filtering_Runtime() async throws {
         // File-scope annotated types conform to LLMToolsRepository
-        let _: any LLMToolsRepository = Demo()
+        let _: any LLMToolsRepository = FilterDemo()
 
         // Full repo has all three
         XCTAssertEqual(FilterDemo().llmTools.map { $0.function.name }, ["hello", "add", "mul"])
@@ -307,6 +307,79 @@ final class LLMToolSwiftTests: XCTestCase {
         } catch {
             XCTFail("unexpected error: \(error)")
         }
+    }
+
+    func testLLMTools_EmitsConformanceExtension_Expansion() throws {
+        #if canImport(LLMToolSwiftMacros)
+        assertMacroExpansion(
+            """
+            @LLMTools
+            struct S {
+                @LLMTool
+                func f(a: Int) {}
+            }
+            """,
+            expandedSource: """
+            struct S {
+                func f(a: Int) {}
+
+                var llmTools: [LLMTool] {
+                    [
+                        Self.fLLMTool
+                    ]
+                }
+
+                func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
+                    switch name {
+                    case "f":
+                        guard let __v_a = arguments["a"] else { throw LLMToolCallError.missingArgument("a") }
+                        if __v_a is NSNull { throw LLMToolCallError.missingArgument("a") }
+                        guard let __i = __v_a as? Int else { throw LLMToolCallError.typeMismatch(param: "__arg_a", expected: "Int") }
+                        let __arg_a = __i
+                        return S.f(__arg_a)
+                    default:
+                        throw LLMToolCallError.functionNotFound(name)
+                    }
+                }
+
+                struct LLMToolFilterSet: OptionSet {
+                    let rawValue: UInt64
+                    init(rawValue: UInt64) { self.rawValue = rawValue }
+                    static let f = LLMToolFilterSet(rawValue: 1 << 0)
+                    static let all: LLMToolFilterSet = [.f]
+                }
+
+                struct _FilteredRepository: LLMToolsRepository {
+                    let base: S
+                    let mask: LLMToolFilterSet
+
+                    var llmTools: [LLMTool] { base.llmTools.filter { allows($0.function.name) } }
+
+                    func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
+                        guard allows(name) else { throw LLMToolCallError.functionNotFound(name) }
+                        return try await base.dispatchLLMTool(named: name, arguments: arguments)
+                    }
+
+                    private func allows(_ name: String) -> Bool {
+                        switch name {
+                        case "f": return mask.contains(.f)
+                        default: return false
+                        }
+                    }
+                }
+
+                func filter(_ set: LLMToolFilterSet) -> some LLMToolsRepository {
+                    _FilteredRepository(base: self, mask: set)
+                }
+            }
+
+            extension S: LLMToolsRepository {}
+            """,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
     }
 
     func testOpenAITool_StrictTrue_Encoding() throws {
