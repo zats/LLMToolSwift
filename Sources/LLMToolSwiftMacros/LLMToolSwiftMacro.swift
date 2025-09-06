@@ -794,36 +794,6 @@ extension LLMToolsMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
-        // Synthesize the conformance when the type actually exposes tools.
-        // Guard: only emit extensions for file-scope types (extension macros
-        // are not valid for local types inside functions).
-        func isFileScope(_ d: some SyntaxProtocol) -> Bool {
-            var p: Syntax? = Syntax(d)
-            while let node = p {
-                if node.is(FunctionDeclSyntax.self) || node.is(CodeBlockSyntax.self) { return false }
-                if node.is(SourceFileSyntax.self) { return true }
-                p = node.parent
-            }
-            return false
-        }
-
-        guard isFileScope(declaration) else { return [] }
-
-        // Ensure there is at least one @LLMTool function
-        let members: MemberBlockSyntax?
-        if let s = declaration.as(StructDeclSyntax.self) { members = s.memberBlock }
-        else if let c = declaration.as(ClassDeclSyntax.self) { members = c.memberBlock }
-        else if let e = declaration.as(ExtensionDeclSyntax.self) { members = e.memberBlock }
-        else { members = nil }
-        guard let members else { return [] }
-        var hasAnyTool = false
-        for m in members.members {
-            if let f = m.decl.as(FunctionDeclSyntax.self), self.hasLLMToolAttribute(f) { hasAnyTool = true; break }
-        }
-        guard hasAnyTool else { return [] }
-
-        // Some toolchains may not pass `protocols` here; don't rely on it.
-
         let extDecl: DeclSyntax = "extension \(type.trimmed): LLMToolsRepository {}"
         guard let extensionDecl = extDecl.as(ExtensionDeclSyntax.self) else { return [] }
         return [extensionDecl]
@@ -839,29 +809,6 @@ extension LLMToolsMacro {
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
         // Mirror the logic above but without relying on the `protocols` parameter.
-        func isFileScope(_ d: some SyntaxProtocol) -> Bool {
-            var p: Syntax? = Syntax(d)
-            while let node = p {
-                if node.is(FunctionDeclSyntax.self) || node.is(CodeBlockSyntax.self) { return false }
-                if node.is(SourceFileSyntax.self) { return true }
-                p = node.parent
-            }
-            return false
-        }
-        guard isFileScope(declaration) else { return [] }
-
-        let members: MemberBlockSyntax?
-        if let s = declaration.as(StructDeclSyntax.self) { members = s.memberBlock }
-        else if let c = declaration.as(ClassDeclSyntax.self) { members = c.memberBlock }
-        else if let e = declaration.as(ExtensionDeclSyntax.self) { members = e.memberBlock }
-        else { members = nil }
-        guard let members else { return [] }
-        var hasAnyTool = false
-        for m in members.members {
-            if let f = m.decl.as(FunctionDeclSyntax.self), self.hasLLMToolAttribute(f) { hasAnyTool = true; break }
-        }
-        guard hasAnyTool else { return [] }
-
         let extDecl: DeclSyntax = "extension \(type.trimmed): LLMToolsRepository {}"
         guard let extensionDecl = extDecl.as(ExtensionDeclSyntax.self) else { return [] }
         return [extensionDecl]
