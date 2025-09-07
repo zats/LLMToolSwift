@@ -81,7 +81,7 @@ final class MyViewModel {
 Swift macros that generate OpenAI-style LLM tool schemas from documented Swift functions. Annotate a function with `@LLMTool` and a static `<funcName>LLMTool` property is generated that describes the function and its parameters. Use `jsonString` to get a minified JSON schema you can pass to LLMs.
 
 - URL: https://github.com/zats/LLMToolSwift
-- Swift: 6.2 (macOS 10.15+/iOS 13+)
+- Swift: 6.0 (macOS 10.15+/iOS 13+)
 
 ## Features
 - `@LLMTool`: Generates `<funcName>LLMTool` with matching access level for per-function tool schemas.
@@ -111,7 +111,7 @@ Add the package to your project using one of the methods below.
 
 ### Package.swift
 ```swift
-// swift-tools-version: 6.2
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(

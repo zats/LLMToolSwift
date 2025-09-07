@@ -1,5 +1,5 @@
 {
-  "originHash" : "df2031de179f243db1d18f6c84939e6ca2b871828169960d7b59302243659451",
+  "originHash" : "5fad88619431340c54199325e4bf5909a599f3a3c8e1983a332ac038543d3b39",
   "pins" : [
     {
       "identity" : "openai",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
-        "revision" : "21b3b45635decd1a0b89968f81b6d9a93128f773",
-        "version" : "602.0.0-prerelease-2025-08-11"
+        "branch" : "release/6.0",
+        "revision" : "0687f71944021d616d34d922343dcef086855920"
       }
     }
   ],

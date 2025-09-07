@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Modules
-- `Package.swift`: SwiftPM manifest (Swift 6.2), declares products and deps.
+- `Package.swift`: SwiftPM manifest (Swift 6.0), declares products and deps.
 - `Sources/LLMToolSwift`: Public API surface (macro entry points used by clients).
 - `Sources/LLMToolSwiftMacros`: Macro implementation and compiler plugin (SwiftSyntax).
 - `Sources/LLMToolSwiftClient`: Minimal executable showcasing macro usage.
