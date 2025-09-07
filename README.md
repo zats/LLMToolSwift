@@ -5,6 +5,7 @@ Swift macros that generate OpenAI-style LLM tool schemas from documented Swift f
 ## Simple Usage
 
 ```swift
+import Foundation
 import LLMToolSwift
 
 @LLMTools
