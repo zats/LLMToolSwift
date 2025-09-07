@@ -40,41 +40,31 @@ final class MyFunctionRegistry {
 }
 ```
 
-and then later to consume you can either use manual mapping or take advantage of built in one with 
+vanilla example building on the previously defined class:
 
 ```swift
-import OpenAI
-import LLMToolOpenAI
+let myFunctionRegistry = MyFunctionRegistry()
 
-final class MyViewModel {
-    let client: OpenAI
-    let functionRegistry: MyFunctionRegistry
-    
-    func createResponse(for query: String) -> CreateModelResponseQuery {
-        return CreateModelResponseQuery(
-            input: .textInput(query),
-            model: .gpt5,
-            toolChoice: .ToolChoiceOptions(.auto),
-            // Defaults to strict mode; pass strict: false to relax
-            tools: MyFunctionRegistry().llmTools.map { $0.openAITool }
-        )
-    }
-    
-    func handleLLMToolCall(_ call: Components.Schemas.FunctionToolCall) async throws {
-        guard let args = try JSONSerialization.jsonObject(with: Data(call.arguments.utf8)) as? [String: Any],
-              let result = try await functionRegistry.dispatchLLMTool(named: call.name, arguments: args) as? String
-        else {
-            fatalError("Failed to process LLMTool call")
-        }
-        saveLLMToolResult(call.id, result)
-    }
-    
-    private func saveLLMToolResult(_ id: String?, _ result: String) {
-        guard let id else { return }
-        let output = InputItem.item(.functionCallOutputItemParam(.init(callId: id, _type: .functionCallOutput, output: result)))
-        // accumulate all the tool calls and pass results back to LLM on the next turn
-    }
-}
+// When setting up your LLM session.
+// Pass myFunctionRegistry.llmTools to LLM 
+// For OpenAI responses API it can look like this
+// (you will need to map llmTools to specific SDK tool type)
+CreateModelResponseQuery(
+    input: .textInput(query),
+    model: .gpt5,
+    toolChoice: .ToolChoiceOptions(.auto),
+    tools: myFunctionRegistry.llmTools.openAITool
+)
+
+// Later when LLM decides to call a tool, 
+// you need to pass tool name and arguments back to the registry
+// (use your custom string converstion logic)
+let result = try await myFunctionRegistry.dispatchLLMTool(named: call.name, arguments: args) as! String
+
+// then you need to pass `result` back to LLM
+// OpenAI responses API will need to use 
+let toolCallResult = InputItem.item(.functionCallOutputItemParam(.init(callId: id, _type: .functionCallOutput, output: result)))
+// refer to your LLM SDK of choice to see how to return the tool call results back to LLM
 ```
 
 —
