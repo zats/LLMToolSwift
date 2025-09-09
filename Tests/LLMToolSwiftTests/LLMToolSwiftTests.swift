@@ -6,7 +6,6 @@ import SwiftSyntaxMacrosTestSupport
 import XCTest
 import LLMToolSwift
 import LLMToolOpenAI
-import LLMToolJSONSchema
 
 
 

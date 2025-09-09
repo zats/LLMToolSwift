@@ -17,10 +17,6 @@ let package = Package(
             name: "LLMToolOpenAI",
             targets: ["LLMToolOpenAI"]
         ),
-        .library(
-            name: "LLMToolJSONSchema",
-            targets: ["LLMToolJSONSchema"]
-        ),
     ],
     dependencies: [
         // SwiftSyntax must match the Swift toolchain series.
@@ -59,26 +55,16 @@ let package = Package(
             ]
         ),
 
-        // Library for generating JSON Schema representations using LLMToolSwift types.
-        .target(
-            name: "LLMToolJSONSchema",
-            dependencies: [
-                "LLMToolSwift"
-            ]
-        ),
-
         // A test target used to develop the macro implementation.
         .testTarget(
             name: "LLMToolSwiftTests",
             dependencies: [
                 "LLMToolSwiftMacros",
                 "LLMToolSwift",
-                "LLMToolJSONSchema",
                 "LLMToolOpenAI",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
-    ]
-    ,
-    swiftLanguageVersions: [.v6]
+    ],
+    swiftLanguageModes: [.v6]
 )

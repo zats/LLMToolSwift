@@ -1,5 +1,4 @@
 import Foundation
-import LLMToolSwift
 
 public extension LLMTool {
     /// Encode the OpenAI-compatible function schema for this tool, including `strict` and `parameters`.
@@ -113,3 +112,4 @@ private enum TypeField: Encodable {
         }
     }
 }
+
