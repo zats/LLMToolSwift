@@ -2,70 +2,40 @@ import Foundation
 
 public extension LLMTool {
     /// Encode the OpenAI-compatible function schema for this tool, including `strict` and `parameters`.
-    /// - Parameter strict: When true (default), marks all properties as required and
-    ///   encodes optional properties as a union with `null` per OpenAI strict mode guidance.
-    /// - Returns: Minified UTF-8 JSON string of `{ name, description?, strict, parameters }`.
+    /// Uses the normalized schema SPI to ensure one source of truth.
     func jsonSchema(strict: Bool = true) -> String {
-        // Build properties map
-        let params = function.parameters
-        let requiredSet = Set(params.required)
+        let model = normalizedSchema(strict: strict)
 
         var properties: [String: PropertySchema] = [:]
-        for (name, prop) in params.properties {
-            let isOptional = !requiredSet.contains(name)
-            let base = Self.baseTypeString(for: prop.type)
-            let typeField: TypeField = (strict && isOptional)
-                ? .multiple([base, "null"]) // optional admits null in strict mode
-                : .single(base)
-
-            let desc = prop.description.isEmpty ? nil : prop.description
-            let enums = (prop.enum?.isEmpty == false) ? prop.enum : nil
-            properties[name] = PropertySchema(type: typeField, description: desc, enumValues: enums)
-        }
-
-        let requiredKeys: [String]
-        if strict {
-            requiredKeys = Array(params.properties.keys).sorted()
-        } else {
-            requiredKeys = params.required
+        for (name, p) in model.parameters.properties {
+            let typeField: TypeField = (p.types.count == 1) ? .single(p.types[0]) : .multiple(p.types)
+            properties[name] = PropertySchema(type: typeField,
+                                             description: p.description,
+                                             enumValues: p.enumValues)
         }
 
         let paramsSchema = ParametersSchema(
             type: "object",
             properties: properties,
-            required: requiredKeys,
-            additionalProperties: false
+            required: model.parameters.required,
+            additionalProperties: model.parameters.additionalProperties
+        )
+
+        let functionSchema = FunctionSchema(
+            name: model.name,
+            description: model.description,
+            strict: model.strict,
+            parameters: paramsSchema
         )
 
         let encoder = JSONEncoder()
         if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
             encoder.outputFormatting.insert(.withoutEscapingSlashes)
         }
-        // Wrap into function-level schema with strict flag.
-        let desc = function.description.isEmpty ? nil : function.description
-        let functionSchema = FunctionSchema(
-            name: function.name,
-            description: desc,
-            strict: strict,
-            parameters: paramsSchema
-        )
-
-        // Intentionally avoid pretty printing; callers can reformat if needed.
         if let jsonData = try? encoder.encode(functionSchema), let jsonString = String(data: jsonData, encoding: .utf8) {
             return jsonString
         }
         return "{}"
-    }
-
-    // MARK: - Helpers
-
-    private static func baseTypeString(for t: LLMTool.PropertyType) -> String {
-        switch t {
-        case .string: return "string"
-        case .integer: return "integer"
-        case .number: return "number"
-        case .boolean: return "boolean"
-        }
     }
 }
 
@@ -112,4 +82,3 @@ private enum TypeField: Encodable {
         }
     }
 }
-

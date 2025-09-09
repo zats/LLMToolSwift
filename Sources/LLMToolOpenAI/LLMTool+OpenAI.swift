@@ -1,79 +1,59 @@
 import Foundation
-import LLMToolSwift
+@_spi(Schema) import LLMToolSwift
 import OpenAI
 
 public extension LLMTool {
     // Backward compatibility: keep property returning strict=true by default
     var openAITool: Tool { openAITool(strict: true) }
 
-    /// Build an OpenAI Tool from this LLMTool.
+    /// Build an OpenAI Tool from this LLMTool using the normalized core schema.
     /// - Parameter strict: If true (default), encodes optional parameters as a union with `null`
     ///   and lists all properties in `required` per OpenAI strict-mode requirements.
     func openAITool(strict: Bool = true) -> Tool {
-        let schema = makeOpenAIJSONSchema(from: function.parameters, strict: strict)
+        let model = normalizedSchema(strict: strict)
+
+        var properties: [String: JSONSchema] = [:]
+        for (name, prop) in model.parameters.properties {
+            var fields: [JSONSchemaField] = []
+            if prop.types.count == 1, let only = prop.types.first {
+                fields.append(.type(Self.mapType(only)))
+            } else {
+                fields.append(.type(.types(prop.types)))
+            }
+            if let d = prop.description { fields.append(.description(d)) }
+            if let enums = prop.enumValues, !enums.isEmpty { fields.append(.enumValues(enums)) }
+            properties[name] = JSONSchema(fields: fields)
+        }
+
+        let schema = JSONSchema.schema(
+            .type(.object),
+            .properties(properties),
+            .required(model.parameters.required),
+            .additionalProperties(.boolean(model.parameters.additionalProperties))
+        )
+
         return .functionTool(
             FunctionTool(
                 type: "function",
-                name: function.name,
-                description: function.description.isEmpty ? nil : function.description,
+                name: model.name,
+                description: model.description,
                 parameters: schema,
-                strict: strict
+                strict: model.strict
             )
         )
     }
 
-    private func makeOpenAIJSONSchema(from params: LLMTool.Parameters, strict: Bool) -> JSONSchema {
-        var properties: [String: JSONSchema] = [:]
-        let requiredSet = Set(params.required)
-        let allKeys = Array(params.properties.keys)
-        for (name, prop) in params.properties {
-            let isOptional = !requiredSet.contains(name)
-            properties[name] = makePropertySchema(from: prop, optional: isOptional, strict: strict)
+    private static func mapType(_ s: String) -> JSONSchemaInstanceType {
+        switch s {
+        case "string": return .string
+        case "integer": return .integer
+        case "number": return .number
+        case "boolean": return .boolean
+        case "null": return .null
+        case "array": return .array
+        case "object": return .object
+        default: return .types([s])
         }
-        let requiredKeys = strict ? allKeys.sorted() : params.required
-        return JSONSchema.schema(
-            .type(.object),
-            .properties(properties),
-            .required(requiredKeys),
-            .additionalProperties(.boolean(false))
-        )
-    }
-
-    private func makePropertySchema(from prop: LLMTool.Property, optional: Bool, strict: Bool) -> JSONSchema {
-        var fields: [JSONSchemaField] = []
-        let baseType: JSONSchemaInstanceType
-        switch prop.type {
-        case .string: baseType = .string
-        case .integer: baseType = .integer
-        case .number: baseType = .number
-        case .boolean: baseType = .boolean
-        }
-
-        if strict && optional {
-            // Optional fields must admit null in strict mode
-            let typeStrings: [String]
-            switch baseType {
-            case .string: typeStrings = ["string", "null"]
-            case .integer: typeStrings = ["integer", "null"]
-            case .number: typeStrings = ["number", "null"]
-            case .boolean: typeStrings = ["boolean", "null"]
-            case .array: typeStrings = ["array", "null"]
-            case .object: typeStrings = ["object", "null"]
-            case .null: typeStrings = ["null"]
-            case .types(let arr): typeStrings = arr
-            }
-            fields.append(.type(.types(typeStrings)))
-        } else {
-            fields.append(.type(baseType))
-        }
-
-        if !prop.description.isEmpty {
-            fields.append(.description(prop.description))
-        }
-        if let values = prop.enum, !values.isEmpty {
-            fields.append(.enumValues(values))
-        }
-        return JSONSchema(fields: fields)
     }
 }
 
