@@ -36,6 +36,9 @@ public struct LLMTool: Encodable, Equatable {
         case integer
         case number
         case boolean
+        case null
+        case array
+        case object
     }
 
     public struct Property: Encodable, Equatable {

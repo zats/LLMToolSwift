@@ -18,7 +18,7 @@ public extension LLMTool {
             if prop.types.count == 1, let only = prop.types.first {
                 fields.append(.type(Self.mapType(only)))
             } else {
-                fields.append(.type(.types(prop.types)))
+                fields.append(.type(.types(prop.types.map { $0.rawValue })))
             }
             if let d = prop.description { fields.append(.description(d)) }
             if let enums = prop.enumValues, !enums.isEmpty { fields.append(.enumValues(enums)) }
@@ -43,16 +43,15 @@ public extension LLMTool {
         )
     }
 
-    private static func mapType(_ s: String) -> JSONSchemaInstanceType {
-        switch s {
-        case "string": return .string
-        case "integer": return .integer
-        case "number": return .number
-        case "boolean": return .boolean
-        case "null": return .null
-        case "array": return .array
-        case "object": return .object
-        default: return .types([s])
+    private static func mapType(_ t: LLMTool.PropertyType) -> JSONSchemaInstanceType {
+        switch t {
+        case .string: return .string
+        case .integer: return .integer
+        case .number: return .number
+        case .boolean: return .boolean
+        case .null: return .null
+        case .array: return .array
+        case .object: return .object
         }
     }
 }

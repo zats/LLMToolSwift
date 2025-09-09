@@ -5,6 +5,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 import LLMToolSwift
+@_spi(Schema) import LLMToolSwift
 import LLMToolOpenAI
 
 
@@ -341,6 +342,71 @@ final class LLMToolSwiftTests: XCTestCase {
         // Parameter descriptions should be present
         XCTAssertTrue(json.contains("\"description\":\"Full name\""))
         XCTAssertTrue(json.contains("\"description\":\"Honorific title\""))
+    }
+
+    func testNormalizedSchema_StrictTrue() throws {
+        // Build tool with required + optional
+        let params = LLMTool.Parameters(
+            properties: [
+                "name": .init(type: .string, description: "Full name", enum: nil),
+                "title": .init(type: .string, description: "Honorific title", enum: nil)
+            ],
+            required: ["name"]
+        )
+        let tool = LLMTool(function: .init(name: "greet", description: "", parameters: params))
+        let model = tool.normalizedSchema(strict: true)
+
+        // required should contain all keys in strict mode (sorted)
+        XCTAssertEqual(model.parameters.required, ["name", "title"]) 
+        // name: string
+        XCTAssertEqual(model.parameters.properties["name"]?.types, [.string])
+        // title: string | null
+        XCTAssertEqual(Set(model.parameters.properties["title"]?.types ?? []), Set([.string, .null]))
+        // additionalProperties false
+        XCTAssertEqual(model.parameters.additionalProperties, false)
+    }
+
+    func testNormalizedSchema_ParityWithJSON() throws {
+        let params = LLMTool.Parameters(
+            properties: [
+                "name": .init(type: .string, description: "Full name", enum: nil),
+                "title": .init(type: .string, description: "Honorific title", enum: nil)
+            ],
+            required: ["name"]
+        )
+        let tool = LLMTool(function: .init(name: "greet", description: "", parameters: params))
+        let model = tool.normalizedSchema(strict: true)
+        let json = tool.jsonSchema(strict: true)
+
+        // Decode json for property type comparison
+        struct Dec: Decodable {
+            struct P: Decodable {
+                let type: Either
+            }
+            struct Params: Decodable { let properties: [String: P]; let required: [String]; let additionalProperties: Bool }
+            let name: String; let strict: Bool; let parameters: Params
+        }
+        enum Either: Decodable, Equatable { case one(String), many([String])
+            init(from d: Decoder) throws {
+                let c = try d.singleValueContainer()
+                if let s = try? c.decode(String.self) { self = .one(s) }
+                else { self = .many(try c.decode([String].self)) }
+            }
+        }
+        let data = Data(json.utf8)
+        let dec = try JSONDecoder().decode(Dec.self, from: data)
+
+        XCTAssertEqual(dec.parameters.required, model.parameters.required)
+        for (name, prop) in model.parameters.properties {
+            let want = prop.types.map { $0.rawValue }.sorted()
+            let got: [String]
+            switch dec.parameters.properties[name]?.type {
+            case .one(let s): got = [s]
+            case .many(let a): got = a
+            case .none: XCTFail("missing property: \(name)"); continue
+            }
+            XCTAssertEqual(got.sorted(), want, "type mismatch for \(name)")
+        }
     }
 
     func testOpenAITool_StrictFalse_Encoding() throws {

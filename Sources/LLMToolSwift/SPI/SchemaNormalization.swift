@@ -16,8 +16,8 @@ import Foundation
 }
 
 @_spi(Schema) public struct NormalizedProperty {
-    /// JSON Schema instance type names, e.g. ["string"] or ["string","null"].
-    public let types: [String]
+    /// Instance types of the property (union), e.g. [.string] or [.string, .null].
+    public let types: [LLMTool.PropertyType]
     public let description: String?
     public let enumValues: [String]?
 }
@@ -31,8 +31,8 @@ import Foundation
         var props: [String: NormalizedProperty] = [:]
         for (name, prop) in params.properties {
             let isOptional = !requiredSet.contains(name)
-            let base = Self.baseTypeString(for: prop.type)
-            let types = (strict && isOptional) ? [base, "null"] : [base]
+            var types: [LLMTool.PropertyType] = [prop.type]
+            if strict && isOptional { types.append(.null) }
             let desc = prop.description.isEmpty ? nil : prop.description
             let enums = (prop.enum?.isEmpty == false) ? prop.enum : nil
             props[name] = NormalizedProperty(types: types, description: desc, enumValues: enums)
@@ -54,15 +54,4 @@ import Foundation
             parameters: normParams
         )
     }
-
-    // Base mapping used by normalization
-    static func baseTypeString(for t: LLMTool.PropertyType) -> String {
-        switch t {
-        case .string: return "string"
-        case .integer: return "integer"
-        case .number: return "number"
-        case .boolean: return "boolean"
-        }
-    }
 }
-

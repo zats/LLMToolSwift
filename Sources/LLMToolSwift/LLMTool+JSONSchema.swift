@@ -56,7 +56,7 @@ private struct FunctionSchema: Encodable {
 }
 
 private struct PropertySchema: Encodable {
-    let type: TypeField // either a single string or [String]
+    let type: TypeField // either a single type or [type]
     let description: String?
     let enumValues: [String]?
 
@@ -71,14 +71,14 @@ private struct PropertySchema: Encodable {
 }
 
 private enum TypeField: Encodable {
-    case single(String)
-    case multiple([String])
+    case single(LLMTool.PropertyType)
+    case multiple([LLMTool.PropertyType])
 
     func encode(to encoder: Encoder) throws {
         var sv = encoder.singleValueContainer()
         switch self {
-        case .single(let s): try sv.encode(s)
-        case .multiple(let a): try sv.encode(a)
+        case .single(let t): try sv.encode(t.rawValue)
+        case .multiple(let a): try sv.encode(a.map { $0.rawValue })
         }
     }
 }
