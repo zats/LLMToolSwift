@@ -6,6 +6,7 @@ import SwiftSyntaxMacrosTestSupport
 import XCTest
 import LLMToolSwift
 import LLMToolOpenAI
+import LLMToolJSONSchema
 
 
 
@@ -323,8 +324,8 @@ final class LLMToolSwiftTests: XCTestCase {
         // Build a tool with one required and one optional param
         let params = LLMTool.Parameters(
             properties: [
-                "name": .init(type: "string", description: "", enum: nil),
-                "title": .init(type: "string", description: "", enum: nil)
+                "name": .init(type: "string", description: "Full name", enum: nil),
+                "title": .init(type: "string", description: "Honorific title", enum: nil)
             ],
             required: ["name"]
         )
@@ -338,14 +339,17 @@ final class LLMToolSwiftTests: XCTestCase {
         XCTAssertTrue(json.contains("\"required\":[\"name\",\"title\"]"))
         // Optional field should admit null via union type
         XCTAssertTrue(json.contains("\"type\":[\"string\",\"null\"]"))
+        // Parameter descriptions should be present
+        XCTAssertTrue(json.contains("\"description\":\"Full name\""))
+        XCTAssertTrue(json.contains("\"description\":\"Honorific title\""))
     }
 
     func testOpenAITool_StrictFalse_Encoding() throws {
         // Build a tool with one required and one optional param
         let params = LLMTool.Parameters(
             properties: [
-                "name": .init(type: "string", description: "", enum: nil),
-                "title": .init(type: "string", description: "", enum: nil)
+                "name": .init(type: "string", description: "Full name", enum: nil),
+                "title": .init(type: "string", description: "Honorific title", enum: nil)
             ],
             required: ["name"]
         )
@@ -359,6 +363,63 @@ final class LLMToolSwiftTests: XCTestCase {
         XCTAssertTrue(json.contains("\"required\":[\"name\"]"))
         // Optional field should NOT admit null via union type
         XCTAssertFalse(json.contains("\"type\":[\"string\",\"null\"]"))
+        // Parameter descriptions should be present
+        XCTAssertTrue(json.contains("\"description\":\"Full name\""))
+        XCTAssertTrue(json.contains("\"description\":\"Honorific title\""))
+    }
+
+    func testJSONSchema_StrictTrue() throws {
+        let params = LLMTool.Parameters(
+            properties: [
+                "name": .init(type: "string", description: "Full name", enum: nil),
+                "title": .init(type: "string", description: "Honorific title", enum: nil)
+            ],
+            required: ["name"]
+        )
+        let tool = LLMTool(function: .init(name: "greet", description: "", parameters: params))
+        let json = tool.jsonSchema(strict: true)
+        XCTAssertTrue(json.contains("\"type\":\"object\""))
+        XCTAssertTrue(json.contains("\"required\":[\"name\",\"title\"]"))
+        XCTAssertTrue(json.contains("\"additionalProperties\":false"))
+        XCTAssertTrue(json.contains("\"type\":[\"string\",\"null\"]"))
+        XCTAssertTrue(json.contains("\"strict\":true"))
+        // Parameter descriptions should be present
+        XCTAssertTrue(json.contains("\"description\":\"Full name\""))
+        XCTAssertTrue(json.contains("\"description\":\"Honorific title\""))
+    }
+
+    func testJSONSchema_StrictFalse() throws {
+        let params = LLMTool.Parameters(
+            properties: [
+                "name": .init(type: "string", description: "Full name", enum: nil),
+                "title": .init(type: "string", description: "Honorific title", enum: nil)
+            ],
+            required: ["name"]
+        )
+        let tool = LLMTool(function: .init(name: "greet", description: "", parameters: params))
+        let json = tool.jsonSchema(strict: false)
+        XCTAssertTrue(json.contains("\"required\":[\"name\"]"))
+        XCTAssertFalse(json.contains("\"type\":[\"string\",\"null\"]"))
+        XCTAssertTrue(json.contains("\"strict\":false"))
+        // Parameter descriptions should be present
+        XCTAssertTrue(json.contains("\"description\":\"Full name\""))
+        XCTAssertTrue(json.contains("\"description\":\"Honorific title\""))
+    }
+
+    func testJSONSchema_StringVariant() throws {
+        let params = LLMTool.Parameters(
+            properties: [
+                "name": .init(type: "string", description: "Full name", enum: nil),
+                "title": .init(type: "string", description: "Honorific title", enum: nil)
+            ],
+            required: ["name"]
+        )
+        let tool = LLMTool(function: .init(name: "greet", description: "", parameters: params))
+        let json = tool.jsonSchema(strict: true)
+        XCTAssertTrue(json.contains("\"required\":[\"name\",\"title\"]"))
+        XCTAssertTrue(json.contains("\"strict\":true"))
+        XCTAssertTrue(json.contains("\"description\":\"Full name\""))
+        XCTAssertTrue(json.contains("\"description\":\"Honorific title\""))
     }
 
     func testLLMTools_StaticOnly_ConformanceAndDispatch() async throws {

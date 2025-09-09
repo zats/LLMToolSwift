@@ -21,7 +21,7 @@ final class MyFunctionRegistry {
      */
     @LLMTool
     func getWeather(location: String) async throws -> String {
-        "Weahter in \(location) is meh"
+        "Weather in \(location) is meh"
     }
     
     /**
@@ -53,7 +53,7 @@ CreateModelResponseQuery(
     input: .textInput(query),
     model: .gpt5,
     toolChoice: .ToolChoiceOptions(.auto),
-    tools: myFunctionRegistry.llmTools.openAITool
+    tools: myFunctionRegistry.llmTools.openAITools(strict: true)
 )
 
 // Later when LLM decides to call a tool, 
@@ -69,7 +69,7 @@ let toolCallResult = InputItem.item(.functionCallOutputItemParam(.init(callId: i
 
 —
 
-Swift macros that generate OpenAI-style LLM tool schemas from documented Swift functions. Annotate a function with `@LLMTool` and a static `<funcName>LLMTool` property is generated that describes the function and its parameters. Use `jsonString` to get a minified JSON schema you can pass to LLMs.
+Swift macros that generate OpenAI-style LLM tool schemas from documented Swift functions. Annotate a function with `@LLMTool` and a static `<funcName>LLMTool` property is generated that describes the function and its parameters. Use either the built-in `jsonString` property or the `LLMToolJSONSchema` module’s `jsonSchema(strict:)` to get a minified function schema you can pass to LLMs.
 
 - URL: https://github.com/zats/LLMToolSwift
 - Swift: 6.0 (macOS 10.15+/iOS 13+)
@@ -91,6 +91,37 @@ Swift macros that generate OpenAI-style LLM tool schemas from documented Swift f
     - Optional parameters are not unioned with `null`.
     - The `required` array contains only actually required properties.
 - For arrays: `MyFunctionRegistry.llmTools.openAITools(strict: ...)`.
+
+### JSON Schema (OpenAI-compatible)
+- `import LLMToolJSONSchema` to produce the function schema for OpenAI function calling or adding to LLM of your choice _raw_.
+- `tool.jsonSchema(strict: Bool = true) -> String` returns minified JSON with `{ name, description?, strict, parameters }`.
+
+```swift
+import LLMToolSwift
+import LLMToolJSONSchema
+
+struct WeatherService {
+    /// Get forecast
+    /// - Parameter city: City name.
+    /// - Parameter units: Units system (metric/imperial).
+    @LLMTool
+    func forecast(city: String, units: String?) {}
+}
+
+let tool = WeatherService.forecastLLMTool
+let schema = tool.jsonSchema(strict: true)
+print(schema)
+// {"name":"forecast","description":"Get forecast","strict":true,
+//  "parameters":{"type":"object","properties":{"city":{...},"units":{...}},
+//  "required":["city","units"],"additionalProperties":false}}
+```
+
+Add the module product to your target to emit schema JSON:
+
+```swift
+// In your Package.swift target dependencies
+.product(name: "LLMToolJSONSchema", package: "LLMToolSwift")
+```
 
 ## Installation (Swift Package Manager)
 Add the package to your project using one of the methods below.
