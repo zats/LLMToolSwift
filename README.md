@@ -1,8 +1,6 @@
 # LLMToolSwift
 
-Swift macros for LLM “tools”: annotate functions, get schemas, and dispatch calls.
-
-– Swift 6 • macOS 10.15+/iOS 13+ • Products: `LLMToolSwift`, `LLMToolOpenAI`
+Use inline documentation to create LLM-compatible tools from native Swift functions
 
 ## 1) Annotated Tools Repo
 
@@ -10,7 +8,7 @@ Swift macros for LLM “tools”: annotate functions, get schemas, and dispatch 
 import LLMToolSwift
 
 @LLMTools
-struct Repo {
+struct ToolsRepository {
     /// Greet a person
     /// - Parameter name: Person name
     @LLMTool
@@ -23,15 +21,15 @@ struct Repo {
     func add(a: Int, b: Int) -> Int { a + b }
 }
 
-let repo = Repo()
-// Tools to wire into your LLM
+let repo = ToolsRepository()
+// Pass your tools to the LLM of your choice (see built in integrations below
 let tools = repo.llmTools
 
 // Handle a tool call (name + JSON args)
 let result = try await repo.dispatchLLMTool(named: "greet", arguments: ["name": "Sam"]) as? String
 ```
 
-## 2) JSON Schema (print it)
+## 2) Tools to JSON Schema
 
 ```swift
 import LLMToolSwift
@@ -44,7 +42,10 @@ struct Weather {
 }
 
 let tool = Weather.forecastLLMTool
-print(tool.jsonSchema(strict: true))
+
+print(tool.jsonSchema())
+// Resulting JSON can be emdedded into system prompt,
+// you will need to detect LLM tool calls in its responses later
 // {"name":"forecast","strict":true,"parameters":{...}}
 ```
 
@@ -55,8 +56,8 @@ import LLMToolSwift
 import LLMToolOpenAI
 import OpenAI
 
-let repo = Repo()
-let oaiTools: [Tool] = repo.llmTools.openAITools(strict: true)
+let allTools = ToolsRepository()
+let oaiTools: [Tool] = allTools.llmTools.openAITools()
 // Pass `oaiTools` to your OpenAI client when creating the session/request.
 
 // Later, when OpenAI returns a function tool call:
