@@ -29,6 +29,8 @@ let tools = repo.llmTools
 let result = try await repo.dispatchLLMTool(named: "greet", arguments: ["name": "Sam"]) as? String
 ```
 
+Tip: Parameters with Swift default values are treated as optional in the generated schema; if an argument is missing (or `NSNull`), dispatch uses the function’s default. Provided values still override the default with normal type checking.
+
 ## 2) Tools to JSON Schema
 
 ```swift
@@ -47,6 +49,7 @@ print(tool.jsonSchema())
 // Resulting JSON can be emdedded into system prompt,
 // you will need to detect LLM tool calls in its responses later
 // {"name":"forecast","strict":true,"parameters":{...}}
+// Defaulted parameters are omitted from `required`.
 ```
 
 ## 3) MacPaw OpenAI
@@ -69,4 +72,3 @@ func handle(call: Components.Schemas.FunctionToolCall) async throws -> String {
 ```
 
 Install via SwiftPM: add `.package(url: "https://github.com/zats/LLMToolSwift", branch: "main")` and depend on `LLMToolSwift` (and `LLMToolOpenAI` if you need the OpenAI integration).
-

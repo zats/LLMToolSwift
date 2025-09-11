@@ -105,6 +105,20 @@ struct NoArgDemo {
     func ping() -> String { "pong" }
 }
 
+// File-scope demo for defaulted parameters
+@LLMTools
+struct DefaultRuntimeDemo {
+    @LLMTool
+    /// Compose
+    /// - Parameter name: Name
+    /// - Parameter times: Times
+    func compose(name: String = "W", times: Int = 1) -> String { "\(name)-\(times)" }
+
+    @LLMTool
+    /// Optional with default
+    func option(suffix: String? = "x") -> String { suffix ?? "nil" }
+}
+
 // Macro implementations build for the host, so the corresponding module is not available when cross-compiling. Cross-compiled tests may still make use of the macro itself in end-to-end tests.
 #if canImport(LLMToolSwiftMacros)
 import LLMToolSwiftMacros
@@ -180,6 +194,57 @@ final class LLMToolSwiftTests: XCTestCase {
                                     )
                                 ],
                                 required: ["name"]
+                            )
+                        )
+                    )
+                }
+            }
+            """,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testLLMToolMacro_DefaultedParams_TreatOptional() throws {
+        #if canImport(LLMToolSwiftMacros)
+        assertMacroExpansion(
+            """
+            public struct S {
+                /// Greeting
+                /// - Parameter name: A name.
+                /// - Parameter count: Count.
+                @LLMTool
+                public func f(name: String = "X", count: Int) {}
+            }
+            """,
+            expandedSource: """
+            public struct S {
+                /// Greeting
+                /// - Parameter name: A name.
+                /// - Parameter count: Count.
+                public func f(name: String = "X", count: Int) {}
+
+                public static var fLLMTool: LLMTool {
+                    LLMTool(
+                        function: .init(
+                            name: "f",
+                            description: "Greeting",
+                            parameters: .init(
+                                properties: [
+                                    "name": .init(
+                                        type: "string",
+                                        description: "A name.",
+                                        enum: nil
+                                    ),
+                                    "count": .init(
+                                        type: "integer",
+                                        description: "Count.",
+                                        enum: nil
+                                    )
+                                ],
+                                required: ["count"]
                             )
                         )
                     )
@@ -549,5 +614,29 @@ final class LLMToolSwiftTests: XCTestCase {
         XCTAssertTrue(tool.function.parameters.required.isEmpty)
         let res = try await d.dispatchLLMTool(named: "ping", arguments: [:]) as? String
         XCTAssertEqual(res, "pong")
+    }
+
+    func testDefaults_RuntimeDispatch() async throws {
+        let d = DefaultRuntimeDemo()
+        // No args -> use defaults
+        let r1 = try await d.dispatchLLMTool(named: "compose", arguments: [:]) as? String
+        XCTAssertEqual(r1, "W-1")
+        // Name provided only
+        let r2 = try await d.dispatchLLMTool(named: "compose", arguments: ["name": "A"]) as? String
+        XCTAssertEqual(r2, "A-1")
+        // Times provided only
+        let r3 = try await d.dispatchLLMTool(named: "compose", arguments: ["times": 3]) as? String
+        XCTAssertEqual(r3, "W-3")
+        // NSNull should be treated as missing and thus use default
+        let r4 = try await d.dispatchLLMTool(named: "compose", arguments: ["name": NSNull()]) as? String
+        XCTAssertEqual(r4, "W-1")
+
+        // Optional with default value
+        let r5 = try await d.dispatchLLMTool(named: "option", arguments: [:]) as? String
+        XCTAssertEqual(r5, "x")
+        let r6 = try await d.dispatchLLMTool(named: "option", arguments: ["suffix": NSNull()]) as? String
+        XCTAssertEqual(r6, "x")
+        let r7 = try await d.dispatchLLMTool(named: "option", arguments: ["suffix": "Z"]) as? String
+        XCTAssertEqual(r7, "Z")
     }
 }

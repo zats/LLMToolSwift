@@ -70,8 +70,9 @@ public struct LLMToolMacro: PeerMacro {
             let paramName = (param.secondName ?? param.firstName).text
             let typeSyntax = param.type
             let (isOptional, baseType) = unwrapOptional(typeSyntax)
+            let hasDefault = (param.defaultValue != nil)
 
-            if !isOptional { required.append(paramName) }
+            if !isOptional && !hasDefault { required.append(paramName) }
 
             let desc = paramDocs[paramName] ?? ""
             var enumCode: String? = nil
@@ -353,20 +354,40 @@ public struct LLMToolMacro: PeerMacro {
             let labelForCall = external == "_" ? "" : external + ": "
             let (isOpt, baseType) = unwrapOptional(param.type)
             let baseTypeName = baseType.trimmedDescription
+            let hasDefault = (param.defaultValue != nil)
+            let defaultExpr = param.defaultValue?.value.description.trimmingCharacters(in: .whitespacesAndNewlines)
 
             let rawVar = "__v_\(internalBase)"
             if isOpt {
                 // optional param
-                lines.append("    var \(varName): \(baseTypeName)?")
-                lines.append("    if let \(rawVar) = arguments[\"\(external)\"] {")
-                lines.append("        if \(rawVar) is Foundation.NSNull {\n            \(varName) = nil\n        } else {")
-                lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: true))
-                lines.append("        }")
-                lines.append("    } else { \(varName) = nil }")
+                if hasDefault, let def = defaultExpr {
+                    lines.append("    var \(varName): \(baseTypeName)? = \(def)")
+                    lines.append("    if let \(rawVar) = arguments[\"\(external)\"] {")
+                    lines.append("        if \(rawVar) is Foundation.NSNull { /* use default */ } else {")
+                    lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: true))
+                    lines.append("        }")
+                    lines.append("    }")
+                } else {
+                    lines.append("    var \(varName): \(baseTypeName)?")
+                    lines.append("    if let \(rawVar) = arguments[\"\(external)\"] {")
+                    lines.append("        if \(rawVar) is Foundation.NSNull {\n            \(varName) = nil\n        } else {")
+                    lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: true))
+                    lines.append("        }")
+                    lines.append("    } else { \(varName) = nil }")
+                }
             } else {
-                lines.append("    guard let \(rawVar) = arguments[\"\(external)\"] else { throw LLMToolCallError.missingArgument(\"\(external)\") }")
-                lines.append("    if \(rawVar) is Foundation.NSNull { throw LLMToolCallError.missingArgument(\"\(external)\") }")
-                lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: false))
+                if hasDefault, let def = defaultExpr {
+                    lines.append("    var \(varName): \(baseTypeName) = \(def)")
+                    lines.append("    if let \(rawVar) = arguments[\"\(external)\"] {")
+                    lines.append("        if \(rawVar) is Foundation.NSNull { /* use default */ } else {")
+                    lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: true))
+                    lines.append("        }")
+                    lines.append("    }")
+                } else {
+                    lines.append("    guard let \(rawVar) = arguments[\"\(external)\"] else { throw LLMToolCallError.missingArgument(\"\(external)\") }")
+                    lines.append("    if \(rawVar) is Foundation.NSNull { throw LLMToolCallError.missingArgument(\"\(external)\") }")
+                    lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: false))
+                }
             }
 
             callArgs.append("\(labelForCall)\(varName)")
@@ -618,18 +639,38 @@ public struct LLMToolsMacro: MemberMacro, ExtensionMacro {
             let labelForCall = external == "_" ? "" : external + ": "
             let (isOpt, baseType) = unwrapOptional(param.type)
             let baseTypeName = baseType.trimmedDescription
+            let hasDefault = (param.defaultValue != nil)
+            let defaultExpr = param.defaultValue?.value.description.trimmingCharacters(in: .whitespacesAndNewlines)
             let rawVar = "__v_\(internalBase)"
             if isOpt {
-                lines.append("    var \(varName): \(baseTypeName)?")
-                lines.append("    if let \(rawVar) = arguments[\"\(external)\"] {")
-                lines.append("        if \(rawVar) is Foundation.NSNull {\n            \(varName) = nil\n        } else {")
-                lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: true))
-                lines.append("        }")
-                lines.append("    } else { \(varName) = nil }")
+                if hasDefault, let def = defaultExpr {
+                    lines.append("    var \(varName): \(baseTypeName)? = \(def)")
+                    lines.append("    if let \(rawVar) = arguments[\"\(external)\"] {")
+                    lines.append("        if \(rawVar) is Foundation.NSNull { /* use default */ } else {")
+                    lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: true))
+                    lines.append("        }")
+                    lines.append("    }")
+                } else {
+                    lines.append("    var \(varName): \(baseTypeName)?")
+                    lines.append("    if let \(rawVar) = arguments[\"\(external)\"] {")
+                    lines.append("        if \(rawVar) is Foundation.NSNull {\n            \(varName) = nil\n        } else {")
+                    lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: true))
+                    lines.append("        }")
+                    lines.append("    } else { \(varName) = nil }")
+                }
             } else {
-                lines.append("    guard let \(rawVar) = arguments[\"\(external)\"] else { throw LLMToolCallError.missingArgument(\"\(external)\") }")
-                lines.append("    if \(rawVar) is Foundation.NSNull { throw LLMToolCallError.missingArgument(\"\(external)\") }")
-                lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: false))
+                if hasDefault, let def = defaultExpr {
+                    lines.append("    var \(varName): \(baseTypeName) = \(def)")
+                    lines.append("    if let \(rawVar) = arguments[\"\(external)\"] {")
+                    lines.append("        if \(rawVar) is Foundation.NSNull { /* use default */ } else {")
+                    lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: true))
+                    lines.append("        }")
+                    lines.append("    }")
+                } else {
+                    lines.append("    guard let \(rawVar) = arguments[\"\(external)\"] else { throw LLMToolCallError.missingArgument(\"\(external)\") }")
+                    lines.append("    if \(rawVar) is Foundation.NSNull { throw LLMToolCallError.missingArgument(\"\(external)\") }")
+                    lines.append(contentsOf: convertValueLines(rawVar: rawVar, targetVar: varName, typeName: baseTypeName, forEnum: baseType.as(IdentifierTypeSyntax.self)?.name.text, assignOnly: false))
+                }
             }
             callArgs.append("\(labelForCall)\(varName)")
         }
