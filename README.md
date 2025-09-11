@@ -10,9 +10,9 @@ import LLMToolSwift
 @LLMTools
 struct ToolsRepository {
     /// Greet a person
-    /// - Parameter name: Person name
+    /// - Parameter name: Person name (defaults to "World")
     @LLMTool
-    func greet(name: String) -> String { "Hello, \(name)!" }
+    func greet(name: String = "World") -> String { "Hello, \(name)!" }
 
     /// Add two numbers
     /// - Parameter a: First
@@ -27,9 +27,10 @@ let tools = repo.llmTools
 
 // Handle a tool call (name + JSON args)
 let result = try await repo.dispatchLLMTool(named: "greet", arguments: ["name": "Sam"]) as? String
+let usesDefault = try await repo.dispatchLLMTool(named: "greet", arguments: [:]) as? String // "Hello, World!"
 ```
 
-Tip: Parameters with Swift default values are treated as optional in the generated schema; if an argument is missing (or `NSNull`), dispatch uses the function’s default. Provided values still override the default with normal type checking.
+Parameters with Swift default values are treated as optional in the generated schema; if an argument is missing (or `NSNull`), dispatch uses the function’s default. Provided values still override the default with normal type checking. You can also override a tool’s name with `@LLMTool(name: "read_file")`; by default it matches the Swift function name.
 
 ## 2) Tools to JSON Schema
 
@@ -50,6 +51,7 @@ print(tool.jsonSchema())
 // you will need to detect LLM tool calls in its responses later
 // {"name":"forecast","strict":true,"parameters":{...}}
 // Defaulted parameters are omitted from `required`.
+// Tool name defaults to the Swift function name; override with @LLMTool(name: "...").
 ```
 
 ## 3) MacPaw OpenAI

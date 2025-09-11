@@ -121,15 +121,31 @@ public struct LLMToolMacro: PeerMacro {
         let propsDict = propEntries.joined(separator: ",\n                    ")
         let requiredArray = required.map { "\"\($0)\"" }.joined(separator: ", ")
 
+        // Optional override via attribute args: @LLMTool(name: "...")
+        let explicitToolName: String? = {
+            if let args = node.arguments?.as(LabeledExprListSyntax.self) {
+                for a in args {
+                    if a.label?.text == "name", let lit = a.expression.as(StringLiteralExprSyntax.self) {
+                        var acc = ""
+                        for seg in lit.segments {
+                            if let s = seg.as(StringSegmentSyntax.self) { acc += s.content.text }
+                        }
+                        return acc
+                    }
+                }
+            }
+            return nil
+        }()
 
         let descriptionLiteral = literalString(summary)
+        let nameLiteral = literalString(explicitToolName ?? funcName)
         let toolDecl: DeclSyntax
         if propEntries.isEmpty {
             toolDecl = """
             \(raw: effectiveAccess(access)) static var \(raw: funcName)LLMTool: LLMTool {
                 LLMTool(
                     function: .init(
-                        name: \"\(raw: funcName)\",
+                        name: \(raw: nameLiteral),
                         description: \(raw: descriptionLiteral),
                         parameters: .init(
                             properties: [:],
@@ -144,7 +160,7 @@ public struct LLMToolMacro: PeerMacro {
             \(raw: effectiveAccess(access)) static var \(raw: funcName)LLMTool: LLMTool {
                 LLMTool(
                     function: .init(
-                        name: \"\(raw: funcName)\",
+                        name: \(raw: nameLiteral),
                         description: \(raw: descriptionLiteral),
                         parameters: .init(
                             properties: [
@@ -328,9 +344,29 @@ public struct LLMToolMacro: PeerMacro {
         return false
     }
 
+    
+
     private static func isStatic(_ f: FunctionDeclSyntax) -> Bool {
         for m in f.modifiers { if m.name.text == "static" || m.name.text == "class" { return true } }
         return false
+    }
+    private static func overrideToolName(for f: FunctionDeclSyntax) -> String? {
+        for a in f.attributes {
+            if let attr = a.as(AttributeSyntax.self), attr.attributeName.trimmedDescription == "LLMTool" {
+                if let args = attr.arguments?.as(LabeledExprListSyntax.self) {
+                    for le in args {
+                        if le.label?.text == "name", let lit = le.expression.as(StringLiteralExprSyntax.self) {
+                            var acc = ""
+                            for seg in lit.segments {
+                                if let s = seg.as(StringSegmentSyntax.self) { acc += s.content.text }
+                            }
+                            return acc
+                        }
+                    }
+                }
+            }
+        }
+        return nil
     }
 
     private static func returnsVoid(_ f: FunctionDeclSyntax) -> Bool {
@@ -342,8 +378,9 @@ public struct LLMToolMacro: PeerMacro {
 
     private static func buildDispatchCase(for f: FunctionDeclSyntax, receiverBase: String) throws -> String {
         let funcName = f.name.text
+        let toolName = overrideToolName(for: f) ?? funcName
         var lines: [String] = []
-        lines.append("case \"\(funcName)\":")
+        lines.append("case \"\(toolName)\":")
 
         // Build parameter extraction
         var callArgs: [String] = []
@@ -569,7 +606,8 @@ public struct LLMToolsMacro: MemberMacro, ExtensionMacro {
         var allowCases: [String] = []
         for f in toolFuncs {
             let n = f.name.text
-            allowCases.append("        case \"\(n)\": return mask.contains(.\(n))")
+            let schemaName = overrideToolName(for: f) ?? n
+            allowCases.append("        case \"\(schemaName)\": return mask.contains(.\(n))")
         }
         let allowJoined = allowCases.joined(separator: "\n")
         let filteredDecl: DeclSyntax = """
@@ -619,6 +657,24 @@ public struct LLMToolsMacro: MemberMacro, ExtensionMacro {
         }
         return false
     }
+    private static func overrideToolName(for f: FunctionDeclSyntax) -> String? {
+        for a in f.attributes {
+            if let attr = a.as(AttributeSyntax.self), attr.attributeName.trimmedDescription == "LLMTool" {
+                if let args = attr.arguments?.as(LabeledExprListSyntax.self) {
+                    for le in args {
+                        if le.label?.text == "name", let lit = le.expression.as(StringLiteralExprSyntax.self) {
+                            var acc = ""
+                            for seg in lit.segments {
+                                if let s = seg.as(StringSegmentSyntax.self) { acc += s.content.text }
+                            }
+                            return acc
+                        }
+                    }
+                }
+            }
+        }
+        return nil
+    }
     private static func unwrapOptional(_ type: TypeSyntax) -> (isOptional: Bool, base: TypeSyntax) {
         if let opt = type.as(OptionalTypeSyntax.self) { return (true, TypeSyntax(opt.wrappedType)) }
         return (false, type)
@@ -629,8 +685,9 @@ public struct LLMToolsMacro: MemberMacro, ExtensionMacro {
     }
     private static func buildDispatchCase(for f: FunctionDeclSyntax, receiverBase: String) throws -> String {
         let funcName = f.name.text
+        let toolName = overrideToolName(for: f) ?? funcName
         var lines: [String] = []
-        lines.append("case \"\(funcName)\":")
+        lines.append("case \"\(toolName)\":")
         var callArgs: [String] = []
         for param in f.signature.parameterClause.parameters {
             let external = param.firstName.text
@@ -809,7 +866,8 @@ public struct LLMToolsMacro: MemberMacro, ExtensionMacro {
         var allowCases: [String] = []
         for f in toolFuncs {
             let n = f.name.text
-            allowCases.append("        case \"\(n)\": return mask.contains(.\(n))")
+            let schemaName = overrideToolName(for: f) ?? n
+            allowCases.append("        case \"\(schemaName)\": return mask.contains(.\(n))")
         }
         let allowJoined = allowCases.joined(separator: "\n")
         let filteredDecl: DeclSyntax = """

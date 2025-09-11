@@ -3,7 +3,7 @@ import Foundation
 /// Attached peer macro that generates a static `<funcName>LLMTool` property
 /// describing the annotated function for LLM tool schemas.
 @attached(peer, names: arbitrary)
-public macro LLMTool() = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolMacro")
+public macro LLMTool(name: String? = nil) = #externalMacro(module: "LLMToolSwiftMacros", type: "LLMToolMacro")
 
 /// Attached member macro placed on a type to aggregate all @LLMTool functions
 /// into a `llmTools` array and generate a `handleLLMCall(name:arguments:)` dispatcher.

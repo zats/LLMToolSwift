@@ -119,6 +119,14 @@ struct DefaultRuntimeDemo {
     func option(suffix: String? = "x") -> String { suffix ?? "nil" }
 }
 
+// File-scope demo for name override
+@LLMTools
+struct NameOverrideRuntimeDemo {
+    @LLMTool(name: "read_file")
+    /// Read file
+    func readFile() -> String { "ok" }
+}
+
 // Macro implementations build for the host, so the corresponding module is not available when cross-compiling. Cross-compiled tests may still make use of the macro itself in end-to-end tests.
 #if canImport(LLMToolSwiftMacros)
 import LLMToolSwiftMacros
@@ -245,6 +253,42 @@ final class LLMToolSwiftTests: XCTestCase {
                                     )
                                 ],
                                 required: ["count"]
+                            )
+                        )
+                    )
+                }
+            }
+            """,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testLLMToolMacro_NameOverride_Expansion() throws {
+        #if canImport(LLMToolSwiftMacros)
+        assertMacroExpansion(
+            """
+            public struct S {
+                /// RF
+                @LLMTool(name: "read_file")
+                public func readFile() {}
+            }
+            """,
+            expandedSource: """
+            public struct S {
+                /// RF
+                public func readFile() {}
+
+                public static var readFileLLMTool: LLMTool {
+                    LLMTool(
+                        function: .init(
+                            name: "read_file",
+                            description: "RF",
+                            parameters: .init(
+                                properties: [:],
+                                required: []
                             )
                         )
                     )
@@ -638,5 +682,22 @@ final class LLMToolSwiftTests: XCTestCase {
         XCTAssertEqual(r6, "x")
         let r7 = try await d.dispatchLLMTool(named: "option", arguments: ["suffix": "Z"]) as? String
         XCTAssertEqual(r7, "Z")
+    }
+
+    func testNameOverride_RuntimeDispatch() async throws {
+        let d = NameOverrideRuntimeDemo()
+        XCTAssertEqual(d.llmTools.map { $0.function.name }, ["read_file"])
+        // Dispatch by overridden name succeeds
+        let r = try await d.dispatchLLMTool(named: "read_file", arguments: [:]) as? String
+        XCTAssertEqual(r, "ok")
+        // Dispatch by original function name should not be found
+        do {
+            _ = try await d.dispatchLLMTool(named: "readFile", arguments: [:])
+            XCTFail("expected functionNotFound for original name")
+        } catch LLMToolCallError.functionNotFound(let name) {
+            XCTAssertEqual(name, "readFile")
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
     }
 }
