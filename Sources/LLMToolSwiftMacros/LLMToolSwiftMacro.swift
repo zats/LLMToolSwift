@@ -107,7 +107,7 @@ public struct LLMToolMacro: PeerMacro {
             properties.append((name: paramName, type: jsonType, desc: desc, enumCode: enumCode))
         }
 
-        // Build properties dictionary literal
+        // Build properties dictionary literal; ensure empty becomes [:] not []
         var propEntries: [String] = []
         for prop in properties {
             let descLiteral = literalString(prop.desc)
@@ -120,23 +120,42 @@ public struct LLMToolMacro: PeerMacro {
         let propsDict = propEntries.joined(separator: ",\n                    ")
         let requiredArray = required.map { "\"\($0)\"" }.joined(separator: ", ")
 
+
         let descriptionLiteral = literalString(summary)
-        let toolDecl: DeclSyntax = """
-        \(raw: effectiveAccess(access)) static var \(raw: funcName)LLMTool: LLMTool {
-            LLMTool(
-                function: .init(
-                    name: \"\(raw: funcName)\",
-                    description: \(raw: descriptionLiteral),
-                    parameters: .init(
-                        properties: [
-                            \(raw: propsDict)
-                        ],
-                        required: [\(raw: requiredArray)]
+        let toolDecl: DeclSyntax
+        if propEntries.isEmpty {
+            toolDecl = """
+            \(raw: effectiveAccess(access)) static var \(raw: funcName)LLMTool: LLMTool {
+                LLMTool(
+                    function: .init(
+                        name: \"\(raw: funcName)\",
+                        description: \(raw: descriptionLiteral),
+                        parameters: .init(
+                            properties: [:],
+                            required: [\(raw: requiredArray)]
+                        )
                     )
                 )
-            )
+            }
+            """
+        } else {
+            toolDecl = """
+            \(raw: effectiveAccess(access)) static var \(raw: funcName)LLMTool: LLMTool {
+                LLMTool(
+                    function: .init(
+                        name: \"\(raw: funcName)\",
+                        description: \(raw: descriptionLiteral),
+                        parameters: .init(
+                            properties: [
+                                \(raw: propsDict)
+                            ],
+                            required: [\(raw: requiredArray)]
+                        )
+                    )
+                )
+            }
+            """
         }
-        """
 
         return [toolDecl]
     }

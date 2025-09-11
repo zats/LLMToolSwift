@@ -97,6 +97,14 @@ struct StaticOnlyToolsFS {
     static func echo(text: String) -> String { text }
 }
 
+// File-scope demo for no-argument tools
+@LLMTools
+struct NoArgDemo {
+    @LLMTool
+    /// Ping
+    func ping() -> String { "pong" }
+}
+
 // Macro implementations build for the host, so the corresponding module is not available when cross-compiling. Cross-compiled tests may still make use of the macro itself in end-to-end tests.
 #if canImport(LLMToolSwiftMacros)
 import LLMToolSwiftMacros
@@ -493,5 +501,53 @@ final class LLMToolSwiftTests: XCTestCase {
         XCTAssertEqual(repo.llmTools.map { $0.function.name }, ["echo"])
         let r = try await repo.dispatchLLMTool(named: "echo", arguments: ["text": "OK"]) as? String
         XCTAssertEqual(r, "OK")
+    }
+
+    func testLLMToolMacro_NoParams_Expansion() throws {
+        #if canImport(LLMToolSwiftMacros)
+        assertMacroExpansion(
+            """
+            public struct S {
+                /// Ping
+                @LLMTool
+                public func ping() -> String { "pong" }
+            }
+            """,
+            expandedSource: """
+            public struct S {
+                /// Ping
+                public func ping() -> String { "pong" }
+
+                public static var pingLLMTool: LLMTool {
+                    LLMTool(
+                        function: .init(
+                            name: "ping",
+                            description: "Ping",
+                            parameters: .init(
+                                properties: [:],
+                                required: []
+                            )
+                        )
+                    )
+                }
+            }
+            """,
+            macros: testMacros
+        )
+        #else
+        throw XCTSkip("macros are only supported when running tests for the host platform")
+        #endif
+    }
+
+    func testNoArgDispatch_Runtime() async throws {
+        // No-arg function should dispatch with empty arguments
+        let d = NoArgDemo()
+        XCTAssertEqual(d.llmTools.map { $0.function.name }, ["ping"])
+        // Schema should have empty properties/required
+        let tool = d.llmTools[0]
+        XCTAssertTrue(tool.function.parameters.properties.isEmpty)
+        XCTAssertTrue(tool.function.parameters.required.isEmpty)
+        let res = try await d.dispatchLLMTool(named: "ping", arguments: [:]) as? String
+        XCTAssertEqual(res, "pong")
     }
 }
