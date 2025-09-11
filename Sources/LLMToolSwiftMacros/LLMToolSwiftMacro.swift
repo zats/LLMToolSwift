@@ -27,6 +27,104 @@ public struct StringifyMacro: ExpressionMacro {
     }
 }
 
+extension LLMToolsMacro {
+    // Shared generator used by both expansion overloads to avoid duplication
+    fileprivate static func generateRepository(members: MemberBlockSyntax, mods: DeclModifierListSyntax?, receiverTypeName: String) throws -> [DeclSyntax] {
+        let typeAccess = self.accessModifier(from: mods)
+        let emitAccess = self.effectiveAccess(typeAccess)
+
+        // Collect functions annotated with @LLMTool
+        var toolFuncs: [FunctionDeclSyntax] = []
+        for m in members.members {
+            if let f = m.decl.as(FunctionDeclSyntax.self), self.hasLLMToolAttribute(f) {
+                toolFuncs.append(f)
+            }
+        }
+        if toolFuncs.isEmpty { return [] }
+
+        // llmTools property
+        let allToolProps = toolFuncs.map { "Self.\($0.name.text)LLMTool" }.joined(separator: ",\n            ")
+        let toolsDecl: DeclSyntax = """
+        \(raw: emitAccess) var llmTools: [LLMTool] {
+            [
+                \(raw: allToolProps)
+            ]
+        }
+        """
+
+        // Dispatcher
+        var switchCases: [String] = []
+        for f in toolFuncs {
+            let call = try self.buildDispatchCase(for: f, receiverBase: "self")
+            switchCases.append(call)
+        }
+        let casesJoined = switchCases.joined(separator: "\n\n            ")
+        let dispatcherDecl: DeclSyntax = """
+        \(raw: emitAccess) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
+            switch name {
+            \(raw: casesJoined)
+            default:
+                throw LLMToolCallError.functionNotFound(name)
+            }
+        }
+        """
+
+        // Filter OptionSet
+        var optionLines: [String] = []
+        for (idx, f) in toolFuncs.enumerated() {
+            let caseName = f.name.text
+            optionLines.append("    \(emitAccess) static let \(caseName) = LLMToolFilterSet(rawValue: 1 << \(idx))")
+        }
+        let allCases = toolFuncs.map { ".\($0.name.text)" }.joined(separator: ", ")
+        let optionBody = optionLines.joined(separator: "\n")
+        let filterSetDecl: DeclSyntax = """
+        \(raw: emitAccess) struct LLMToolFilterSet: OptionSet {
+            \(raw: emitAccess) let rawValue: UInt64
+            \(raw: emitAccess) init(rawValue: UInt64) { self.rawValue = rawValue }
+        \(raw: optionBody)
+            \(raw: emitAccess) static let all: LLMToolFilterSet = [\(raw: allCases)]
+        }
+        """
+
+        // Filtered repository wrapper
+        var allowCases: [String] = []
+        for f in toolFuncs {
+            let n = f.name.text
+            let schemaName = overrideToolName(for: f) ?? n
+            allowCases.append("        case \"\(schemaName)\": return mask.contains(.\(n))")
+        }
+        let allowJoined = allowCases.joined(separator: "\n")
+        let filteredDecl: DeclSyntax = """
+        \(raw: emitAccess) struct _FilteredRepository: LLMToolsRepository {
+            let base: \(raw: receiverTypeName)
+            let mask: LLMToolFilterSet
+
+            \(raw: emitAccess) var llmTools: [LLMTool] { base.llmTools.filter { allows($0.function.name) } }
+
+            \(raw: emitAccess) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
+                guard allows(name) else { throw LLMToolCallError.functionNotFound(name) }
+                return try await base.dispatchLLMTool(named: name, arguments: arguments)
+            }
+
+            private func allows(_ name: String) -> Bool {
+                switch name {
+        \(raw: allowJoined)
+                default: return false
+                }
+            }
+        }
+        """
+
+        // Instance factory
+        let filterFactoryDecl: DeclSyntax = """
+        \(raw: emitAccess) func filter(_ set: LLMToolFilterSet) -> some LLMToolsRepository {
+            _FilteredRepository(base: self, mask: set)
+        }
+        """
+
+        return [toolsDecl, dispatcherDecl, filterSetDecl, filteredDecl, filterFactoryDecl]
+    }
+}
 // MARK: - LLMTool Peer Macro
 
 enum LLMToolDiagnostics {
@@ -539,106 +637,12 @@ public struct LLMToolsMacro: MemberMacro, ExtensionMacro {
         }
 
         guard let members else { return [] }
-        let typeAccess = self.accessModifier(from: mods)
-        let emitAccess = self.effectiveAccess(typeAccess)
-        // Determine concrete receiver type for dispatcher parameter
-        // Instance dispatcher; receiver is self
-
-        // Collect functions annotated with @LLMTool
-        var toolFuncs: [FunctionDeclSyntax] = []
-        for m in members.members {
-            if let f = m.decl.as(FunctionDeclSyntax.self), self.hasLLMToolAttribute(f) {
-                toolFuncs.append(f)
-            }
-        }
-        if toolFuncs.isEmpty { return [] }
-
-        // llmTools property
-        let allToolProps = toolFuncs.map { "Self.\($0.name.text)LLMTool" }.joined(separator: ",\n            ")
-        let toolsDecl: DeclSyntax = """
-        \(raw: emitAccess) var llmTools: [LLMTool] {
-            [
-                \(raw: allToolProps)
-            ]
-        }
-        """
-
-        // Dispatcher
-        var switchCases: [String] = []
-        for f in toolFuncs {
-            let call = try self.buildDispatchCase(for: f, receiverBase: "self")
-            switchCases.append(call)
-        }
-        let casesJoined = switchCases.joined(separator: "\n\n            ")
-        let dispatcherDecl: DeclSyntax = """
-        \(raw: emitAccess) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
-            switch name {
-            \(raw: casesJoined)
-            default:
-                throw LLMToolCallError.functionNotFound(name)
-            }
-        }
-        """
-        // Filter OptionSet
-        var optionLines: [String] = []
-        for (idx, f) in toolFuncs.enumerated() {
-            let caseName = f.name.text
-            optionLines.append("    \(emitAccess) static let \(caseName) = LLMToolFilterSet(rawValue: 1 << \(idx))")
-        }
-        let allCases = toolFuncs.map { ".\($0.name.text)" }.joined(separator: ", ")
-        let optionBody = optionLines.joined(separator: "\n")
-        let filterSetDecl: DeclSyntax = """
-        \(raw: emitAccess) struct LLMToolFilterSet: OptionSet {
-            \(raw: emitAccess) let rawValue: UInt64
-            \(raw: emitAccess) init(rawValue: UInt64) { self.rawValue = rawValue }
-        \(raw: optionBody)
-            \(raw: emitAccess) static let all: LLMToolFilterSet = [\(raw: allCases)]
-        }
-        """
-
-        // Filtered repository wrapper
         let receiverTypeName: String
         if let s = (decl as? StructDeclSyntax) { receiverTypeName = s.name.text }
         else if let c = (decl as? ClassDeclSyntax) { receiverTypeName = c.name.text }
         else if let e = (decl as? ExtensionDeclSyntax) { receiverTypeName = e.extendedType.trimmedDescription }
         else { receiverTypeName = "Self" }
-
-        var allowCases: [String] = []
-        for f in toolFuncs {
-            let n = f.name.text
-            let schemaName = overrideToolName(for: f) ?? n
-            allowCases.append("        case \"\(schemaName)\": return mask.contains(.\(n))")
-        }
-        let allowJoined = allowCases.joined(separator: "\n")
-        let filteredDecl: DeclSyntax = """
-        \(raw: emitAccess) struct _FilteredRepository: LLMToolsRepository {
-            let base: \(raw: receiverTypeName)
-            let mask: LLMToolFilterSet
-
-            \(raw: emitAccess) var llmTools: [LLMTool] { base.llmTools.filter { allows($0.function.name) } }
-
-            \(raw: emitAccess) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
-                guard allows(name) else { throw LLMToolCallError.functionNotFound(name) }
-                return try await base.dispatchLLMTool(named: name, arguments: arguments)
-            }
-
-            private func allows(_ name: String) -> Bool {
-                switch name {
-        \(raw: allowJoined)
-                default: return false
-                }
-            }
-        }
-        """
-
-        // Instance factory
-        let filterFactoryDecl: DeclSyntax = """
-        \(raw: emitAccess) func filter(_ set: LLMToolFilterSet) -> some LLMToolsRepository {
-            _FilteredRepository(base: self, mask: set)
-        }
-        """
-
-        return [toolsDecl, dispatcherDecl, filterSetDecl, filteredDecl, filterFactoryDecl]
+        return try generateRepository(members: members, mods: mods, receiverTypeName: receiverTypeName)
     }
 
     // Local helpers for dispatcher generation
@@ -789,115 +793,18 @@ public struct LLMToolsMacro: MemberMacro, ExtensionMacro {
     ) throws -> [DeclSyntax] {
         let members: MemberBlockSyntax?
         let mods: DeclModifierListSyntax?
+        let receiverTypeName: String
         if let s = decl.as(StructDeclSyntax.self) {
-            members = s.memberBlock
-            mods = s.modifiers
+            members = s.memberBlock; mods = s.modifiers; receiverTypeName = s.name.text
         } else if let c = decl.as(ClassDeclSyntax.self) {
-            members = c.memberBlock
-            mods = c.modifiers
+            members = c.memberBlock; mods = c.modifiers; receiverTypeName = c.name.text
         } else if let e = decl.as(ExtensionDeclSyntax.self) {
-            members = e.memberBlock
-            mods = e.modifiers
+            members = e.memberBlock; mods = e.modifiers; receiverTypeName = e.extendedType.trimmedDescription
         } else {
             return []
         }
-
         guard let members else { return [] }
-        let typeAccess = self.accessModifier(from: mods)
-        let emitAccess = self.effectiveAccess(typeAccess)
-
-        //
-
-        var toolFuncs: [FunctionDeclSyntax] = []
-        for m in members.members {
-            if let f = m.decl.as(FunctionDeclSyntax.self), self.hasLLMToolAttribute(f) {
-                toolFuncs.append(f)
-            }
-        }
-        if toolFuncs.isEmpty { return [] }
-
-        let allToolProps = toolFuncs.map { "Self.\($0.name.text)LLMTool" }.joined(separator: ",\n            ")
-        let toolsDecl: DeclSyntax = """
-        \(raw: emitAccess) var llmTools: [LLMTool] {
-            [
-                \(raw: allToolProps)
-            ]
-        }
-        """
-
-        var switchCases: [String] = []
-        for f in toolFuncs {
-            let call = try self.buildDispatchCase(for: f, receiverBase: "self")
-            switchCases.append(call)
-        }
-        let casesJoined = switchCases.joined(separator: "\n\n            ")
-        let dispatcherDecl: DeclSyntax = """
-        \(raw: emitAccess) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
-            switch name {
-            \(raw: casesJoined)
-            default:
-                throw LLMToolCallError.functionNotFound(name)
-            }
-        }
-        """
-        // Filter OptionSet
-        var optionLines: [String] = []
-        for (idx, f) in toolFuncs.enumerated() {
-            let caseName = f.name.text
-            optionLines.append("    \(emitAccess) static let \(caseName) = LLMToolFilterSet(rawValue: 1 << \(idx))")
-        }
-        let allCases = toolFuncs.map { ".\($0.name.text)" }.joined(separator: ", ")
-        let optionBody = optionLines.joined(separator: "\n")
-        let filterSetDecl: DeclSyntax = """
-        \(raw: emitAccess) struct LLMToolFilterSet: OptionSet {
-            \(raw: emitAccess) let rawValue: UInt64
-            \(raw: emitAccess) init(rawValue: UInt64) { self.rawValue = rawValue }
-        \(raw: optionBody)
-            \(raw: emitAccess) static let all: LLMToolFilterSet = [\(raw: allCases)]
-        }
-        """
-
-        let receiverTypeName: String
-        if let s = (decl as? StructDeclSyntax) { receiverTypeName = s.name.text }
-        else if let c = (decl as? ClassDeclSyntax) { receiverTypeName = c.name.text }
-        else if let e = (decl as? ExtensionDeclSyntax) { receiverTypeName = e.extendedType.trimmedDescription }
-        else { receiverTypeName = "Self" }
-
-        var allowCases: [String] = []
-        for f in toolFuncs {
-            let n = f.name.text
-            let schemaName = overrideToolName(for: f) ?? n
-            allowCases.append("        case \"\(schemaName)\": return mask.contains(.\(n))")
-        }
-        let allowJoined = allowCases.joined(separator: "\n")
-        let filteredDecl: DeclSyntax = """
-        \(raw: emitAccess) struct _FilteredRepository: LLMToolsRepository {
-            let base: \(raw: receiverTypeName)
-            let mask: LLMToolFilterSet
-
-            \(raw: emitAccess) var llmTools: [LLMTool] { base.llmTools.filter { allows($0.function.name) } }
-
-            \(raw: emitAccess) func dispatchLLMTool(named name: String, arguments: [String: Any]) async throws -> Any? {
-                guard allows(name) else { throw LLMToolCallError.functionNotFound(name) }
-                return try await base.dispatchLLMTool(named: name, arguments: arguments)
-            }
-
-            private func allows(_ name: String) -> Bool {
-                switch name {
-        \(raw: allowJoined)
-                default: return false
-                }
-            }
-        }
-        """
-
-        let filterFactoryDecl: DeclSyntax = """
-        \(raw: emitAccess) func filter(_ set: LLMToolFilterSet) -> some LLMToolsRepository {
-            _FilteredRepository(base: self, mask: set)
-        }
-        """
-
-        return [toolsDecl, dispatcherDecl, filterSetDecl, filteredDecl, filterFactoryDecl]
+        return try generateRepository(members: members, mods: mods, receiverTypeName: receiverTypeName)
     }
 
 }
