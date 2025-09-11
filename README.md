@@ -17,7 +17,7 @@ struct ToolsRepository {
     /// Add two numbers
     /// - Parameter a: First
     /// - Parameter b: Second
-    @LLMTool
+    @LLMTool(name: "sum_numbers")
     func add(a: Int, b: Int) -> Int { a + b }
 }
 
